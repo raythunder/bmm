@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { AUTH_EXPIRED_ERROR_CODE, AuthExpiredError } from '@/lib/auth/assert-user-exists'
 import SqlXError from '@/lib/SqlXError'
 import { to } from '@/utils'
 import { IS_DEV, PageRoutes } from '@cfg'
@@ -34,12 +35,13 @@ export function makeActionInput<Args extends any[], Data>(
 type MakeActionArgs<Args extends any[], Data> =
   | [MakeActionOptionsWithHandler<Args, Data>['handler'], MakeActionOptions?]
   | [MakeActionOptionsWithHandler<Args, Data>]
+export type ActionErrorCode = typeof AUTH_EXPIRED_ERROR_CODE
 export function makeAction<Args extends any[], Data>(...makeArgs: MakeActionArgs<Args, Data>) {
   const handler = makeArgs[0] instanceof Function ? makeArgs[0] : makeArgs[0].handler
   const opts = (makeArgs[0] instanceof Function ? makeArgs[1] : omit(makeArgs[0], 'handler')) || {}
   opts.guard ??= 'user'
   type ActionArgs = typeof opts.schema extends ZodSchema ? [z.infer<typeof opts.schema>] : Args
-  type ErrorResult = { error: { msg: string }; data?: undefined }
+  type ErrorResult = { error: { msg: string; code?: ActionErrorCode }; data?: undefined }
   async function action(...args: ActionArgs) {
     if (opts.schema) {
       const result = opts.schema.safeParse(args[0])
@@ -63,7 +65,7 @@ export function makeAction<Args extends any[], Data>(...makeArgs: MakeActionArgs
     const [error, data] = await to(handler(...args))
     if (error) {
       IS_DEV && console.error(error)
-      return { error: { msg: getErrorMsg(error) } } as ErrorResult
+      return { error: getActionError(error) } as ErrorResult
     }
     return { data, error: undefined } as const
   }
@@ -73,15 +75,18 @@ export type ActionResult<Args extends any[], Data> = ReturnType<
   ReturnType<typeof makeAction<Args, Data>>
 >
 
-function getErrorMsg(error: unknown) {
+function getActionError(error: unknown) {
+  if (error instanceof AuthExpiredError) {
+    return { msg: error.message, code: error.code } as const
+  }
   if (SqlXError.canParse(error)) {
-    return SqlXError.getMessage(error)
+    return { msg: SqlXError.getMessage(error) } as const
   }
   if (error instanceof z.ZodError) {
-    return error.issues.map((i) => i.message).join('；')
+    return { msg: error.issues.map((i) => i.message).join('；') } as const
   }
   if (error instanceof Error) {
-    return error.message
+    return { msg: error.message } as const
   }
-  return '未知错误'
+  return { msg: '未知错误' } as const
 }

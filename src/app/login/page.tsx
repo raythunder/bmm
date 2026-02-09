@@ -24,9 +24,14 @@ import { Velustro } from 'uvcanvas'
 export default function Page() {
   const session = useSession()
   const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get('callbackUrl')
+  const redirectAfterLogin = callbackUrl?.startsWith('/') ? callbackUrl : undefined
 
   // 登录成功后，根据用户角色重定向到不同的页面
   if (session.status === 'authenticated') {
+    if (redirectAfterLogin) {
+      return redirect(redirectAfterLogin)
+    }
     if (session.data.user.isAdmin) {
       return redirect(PageRoutes.INDEX)
     }
@@ -78,7 +83,7 @@ export default function Page() {
       })
       return
     }
-    await signIn('github')
+    await signIn('github', redirectAfterLogin ? { callbackUrl: redirectAfterLogin } : undefined)
     setState({ isRedirecting: true })
   }
 
@@ -137,7 +142,10 @@ export default function Page() {
       return
     }
     addToast({ color: 'success', title: '登录成功' })
-    await signIn('credentials', values)
+    await signIn('credentials', {
+      ...values,
+      callbackUrl: redirectAfterLogin,
+    })
   }
 
   return (

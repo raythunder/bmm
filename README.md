@@ -238,6 +238,18 @@ Github OAuth App 的 Client ID 和 Client Secret 将分别用作环境变量 `AU
   再次明确：访问项目的地址、Authorization callback URL、AUTH_URL 这三者应该是一致的。
 </details>
 
+<details>
+  <summary>
+    数据库重置后，上传或新建数据时报 FOREIGN KEY constraint failed
+  </summary>
+
+  <br>
+  这通常是因为浏览器仍保留旧登录态（JWT），但数据库中的对应用户记录已经被清理（例如本地重置了 SQLite 文件）。
+
+  <br>
+  此时请先退出登录并重新登录，再继续操作。
+</details>
+
 
 <details>
   <summary>
@@ -247,4 +259,3 @@ Github OAuth App 的 Client ID 和 Client Secret 将分别用作环境变量 `AU
   <br>
   借助 drizzle-orm 的能力，本项目可以快速接入 MySQL 数据库。
 </details>
-

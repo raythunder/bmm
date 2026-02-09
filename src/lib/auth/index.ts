@@ -2,6 +2,7 @@ import UserController from '@/controllers/User.controller'
 import { db, schema } from '@/db'
 import { DrizzleAdapter } from '@auth/drizzle-adapter'
 import NextAuth, { NextAuthConfig } from 'next-auth'
+import { AuthExpiredError, assertUserExists } from './assert-user-exists'
 import { authConfig } from './config'
 
 const adapter = DrizzleAdapter(db, {
@@ -37,6 +38,8 @@ export const auth = nextAuthLib.auth
  */
 export async function getAuthedUserId() {
   const session = await auth()
-  if (!session) throw new Error('getAuthedUserId() 调用出错')
-  return session.user.id!
+  const userId = session?.user?.id
+  if (!userId) throw new AuthExpiredError()
+  await assertUserExists(userId)
+  return userId
 }

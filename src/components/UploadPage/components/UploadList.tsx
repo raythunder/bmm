@@ -140,13 +140,13 @@ export default function UploadList(props: Props) {
           (name) => tags.find((t) => t.name === name)!.id
         ),
       }
-      const res = await insertBookmark(entity)
-      res.error ? failedNum++ : successNum++
+      const res = await runAction(insertBookmark(entity), { errToast: { hidden: true } })
+      res.ok ? successNum++ : failedNum++
       setBookmarks((bookmarks) => {
         const b = bookmarks.find((_bookmark) => _bookmark.id === bookmark.id)!
-        if (res.error) {
+        if (!res.ok) {
           b.status = UploadStatus.FAILED
-          b.tip = res.error.msg
+          b.tip = res.message
         } else {
           b.status = UploadStatus.SUCCESS
         }
