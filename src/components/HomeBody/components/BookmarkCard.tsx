@@ -1,8 +1,15 @@
+import { actDeletePublicBookmark, actDeleteUserBookmark } from '@/actions'
 import Favicon from '@/components/Favicon'
-import { useIsMobile } from '@/hooks'
+import { useIsMobile, usePageUtil } from '@/hooks'
 import { useOnClickTag } from '@/hooks/useOnClickTag'
+import { runAction } from '@/utils/client'
 import { getTagLinkAttrs } from '@/utils'
-import { Chip, cn, Tooltip } from '@heroui/react'
+import { PageRoutes } from '@cfg'
+import { Chip, addToast, cn, Tooltip } from '@heroui/react'
+import { useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { usePathname } from 'next/navigation'
+import BookmarkEditModal from './BookmarkEditModal'
 import { useHomePageContext } from '../ctx'
 
 interface Props extends SelectBookmark {
@@ -13,9 +20,24 @@ interface Props extends SelectBookmark {
 }
 
 export default function BookmarkCard(props: Props) {
-  const { tags } = useHomePageContext()
+  const { tags, updateBookmark, removeBookmark } = useHomePageContext()
   const { onClickTag } = useOnClickTag({ tags })
   const isMobile = useIsMobile()
+  const pathname = usePathname()
+  const pageUtil = usePageUtil()
+  const session = useSession()
+  const [state, setState] = useState({
+    editModalOpen: false,
+  })
+
+  const isHomePage = pathname === PageRoutes.INDEX || pathname === PageRoutes.User.INDEX
+  const isAuthenticated = session.status === 'authenticated'
+  const canEditInCurrentSpace =
+    pageUtil.isUserSpace || (pageUtil.isPublicSpace && !!session.data?.user?.isAdmin)
+  const showCopyAction = isHomePage && isAuthenticated
+  const showEditAction = showCopyAction && canEditInCurrentSpace
+  const showDeleteAction = showEditAction
+  const alwaysShowActions = isMobile || state.editModalOpen
 
   const generateLinkTitle = () => {
     const baseTitle = `${props.name} - ${props.description}`
@@ -26,18 +48,81 @@ export default function BookmarkCard(props: Props) {
     return tagNames.length ? `${baseTitle} (标签: ${tagNames.join(', ')})` : baseTitle
   }
 
+  async function onCopyUrl(evt: React.MouseEvent<HTMLButtonElement>) {
+    evt.stopPropagation()
+    try {
+      if (globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(props.url)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = props.url
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      addToast({ color: 'success', title: '站点地址已复制' })
+    } catch {
+      addToast({ color: 'danger', title: '复制失败，请检查浏览器权限' })
+    }
+  }
+
+  function onClickEdit(evt: React.MouseEvent<HTMLButtonElement>) {
+    evt.stopPropagation()
+    setState({ editModalOpen: true })
+  }
+
+  async function onClickDelete(evt: React.MouseEvent<HTMLButtonElement>) {
+    evt.stopPropagation()
+    const isConfirmed = globalThis.confirm(`确认删除站点「${props.name}」？此操作不可恢复。`)
+    if (!isConfirmed) return
+    const action = pageUtil.isUserSpace
+      ? actDeleteUserBookmark({ id: props.id })
+      : actDeletePublicBookmark({ id: props.id })
+    await runAction(action, {
+      okMsg: '书签已删除',
+      onOk() {
+        removeBookmark(props.id)
+      },
+    })
+  }
+
+  function onClickCard(evt: React.MouseEvent<HTMLDivElement>) {
+    if (state.editModalOpen) return
+    const target = evt.target as Node | null
+    if (target && !evt.currentTarget.contains(target)) return
+    window.open(props.url, '_blank')
+  }
+
   return (
     <div
       className={cn(
-        'flex cursor-pointer flex-col gap-3 rounded-2xl p-4 transition',
+        'group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-4 transition',
         'max-xs:pb-3 max-xs:dark:border-0 max-xs:dark:bg-foreground-200/20',
         'border-foreground-200 dark:border-opacity-60 border-2',
         'xs:hover:border-blue-500 xs:hover:shadow-lg xs:hover:shadow-blue-500/50'
       )}
-      onClick={() => window.open(props.url, '_blank')}
+      onClick={onClickCard}
     >
+      {showDeleteAction && (
+        <button
+          type="button"
+          aria-label={`删除站点 ${props.name}`}
+          onClick={onClickDelete}
+          className={cn(
+            'text-danger-500 border-danger-200 hover:text-danger-600 hover:bg-danger-50/30 absolute top-3 right-3 z-10 inline-flex size-9 items-center justify-center rounded-full border transition active:scale-95',
+            alwaysShowActions
+              ? 'opacity-100'
+              : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
+          )}
+        >
+          <span className="icon-[tabler--trash] text-base leading-none" />
+        </button>
+      )}
       <a
-        className="flex-items-center gap-2"
+        className={cn('flex-items-center gap-2', showDeleteAction && 'pr-8')}
         href={props.url}
         target="_blank"
         rel="noopener noreferrer"
@@ -87,6 +172,46 @@ export default function BookmarkCard(props: Props) {
           )
         })}
       </div>
+      {showCopyAction && (
+        <div
+          className={cn(
+            'flex justify-end gap-2 transition',
+            alwaysShowActions
+              ? 'opacity-100'
+              : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
+          )}
+          aria-label="站点操作"
+        >
+          {showEditAction && (
+            <button
+              type="button"
+              onClick={onClickEdit}
+              className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+            >
+              <span className="icon-[tabler--edit] text-sm" />
+              <span>编辑</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCopyUrl}
+            className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+          >
+            <span className="icon-[tabler--copy] text-sm" />
+            <span>复制</span>
+          </button>
+        </div>
+      )}
+      {showEditAction && (
+        <BookmarkEditModal
+          isOpen={state.editModalOpen}
+          bookmark={props}
+          tags={tags}
+          isUserSpace={pageUtil.isUserSpace}
+          onClose={() => setState({ editModalOpen: false })}
+          onSaved={updateBookmark}
+        />
+      )}
     </div>
   )
 }

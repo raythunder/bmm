@@ -21,6 +21,14 @@ interface Props {
   searchedTotalBookmarks?: number
 }
 
+function sortBookmarksByPinned(bookmarks: SelectBookmark[]) {
+  return [...bookmarks].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    return 0
+  })
+}
+
 export default function HomeBody(props: Props) {
   const pathname = usePathname()
   const params = useParams()
@@ -33,11 +41,7 @@ export default function HomeBody(props: Props) {
   })
 
   useEffect(() => {
-    const bookmarks = [...props.bookmarks].sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1
-      if (!a.isPinned && b.isPinned) return 1
-      return 0
-    })
+    const bookmarks = sortBookmarksByPinned(props.bookmarks)
     setState({ bookmarks })
   }, [props.bookmarks, setState])
 
@@ -58,14 +62,29 @@ export default function HomeBody(props: Props) {
     return {
       tags: props.tags,
       bookmarks: state.bookmarks,
+      updateBookmark(bookmark) {
+        setState((oldState) => ({
+          bookmarks: sortBookmarksByPinned(
+            oldState.bookmarks.map((item) => {
+              if (item.id !== bookmark.id) return item
+              return bookmark
+            })
+          ),
+        }))
+      },
+      removeBookmark(id) {
+        setState((oldState) => ({
+          bookmarks: oldState.bookmarks.filter((item) => item.id !== id),
+        }))
+      },
     }
-  }, [props.tags, state.bookmarks])
+  }, [props.tags, setState, state.bookmarks])
 
   const showEnd = isClient && !!bookmarks.length && state.hasMore === false
 
   return (
     <HomeBodyProvider value={homeBodyCtx}>
-      <aside className="fixed bottom-0 top-16 w-56 pl-6 max-xs:hidden">
+      <aside className="max-xs:hidden fixed top-16 bottom-0 w-56 pl-6">
         <TagPicker />
       </aside>
       <div className="xs:ml-56">
@@ -81,17 +100,17 @@ export default function HomeBody(props: Props) {
             })}
           </BookmarkContainer>
           {!bookmarks.length && isClient && !state.hasMore && (
-            <div className="grow flex-col flex-center">
+            <div className="flex-center grow flex-col">
               <Image width={128} height={128} src={Assets.BOX_EMPTY_PNG} alt="empty" priority />
-              <p className="mt-4 text-sm text-foreground-500">
+              <p className="text-foreground-500 mt-4 text-sm">
                 {isSearchPage ? '要不，换个关键词再试试？' : '暂无相关内容'}
               </p>
             </div>
           )}
           {showEnd && (
-            <div className="mt-12 flex-center">
+            <div className="flex-center mt-12">
               <Divider orientation="vertical" className="h-3" />
-              <span className="mx-4 text-xs text-foreground-400 xs:mx-8">END</span>
+              <span className="text-foreground-400 xs:mx-8 mx-4 text-xs">END</span>
               <Divider orientation="vertical" className="h-3" />
             </div>
           )}

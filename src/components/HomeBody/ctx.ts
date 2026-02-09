@@ -3,6 +3,8 @@ import { createContext, useContext } from 'react'
 export interface HomeBodyContext {
   tags: SelectTag[]
   bookmarks: SelectBookmark[]
+  updateBookmark(bookmark: SelectBookmark): void
+  removeBookmark(id: BookmarkId): void
 }
 
 const HomeBodyContext = createContext<HomeBodyContext | null>(null)
