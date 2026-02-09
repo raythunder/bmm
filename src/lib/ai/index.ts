@@ -1,8 +1,32 @@
 import fetchHtml from '@/utils/fetch-html'
 import { generateText, Output } from 'ai'
 import z from 'zod'
+import { sanitizeAiTagNames } from '@/utils'
+import { logAiDebug } from './debug'
 import { getOpenAICompatibleModel } from './providers'
 import { createPayload } from './utils'
+
+const GENERIC_WEBSITE_TAGS = ['开发者工具', '其它', '其他']
+const normalizedGenericWebsiteTags = new Set(
+  GENERIC_WEBSITE_TAGS.map((name) => normalizeTagName(name))
+)
+
+function normalizeTagName(input: string) {
+  return input
+    .normalize('NFKC')
+    .replace(/^[\s"'`“”‘’]+|[\s"'`“”‘’]+$/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase()
+}
+
+function filterWebsiteTags(rawTags: string[] | undefined) {
+  const tags = sanitizeAiTagNames(rawTags)
+  if (tags.length <= 1) return tags
+  const specificTags = tags.filter(
+    (tag) => !normalizedGenericWebsiteTags.has(normalizeTagName(tag))
+  )
+  return specificTags.length ? specificTags : tags
+}
 
 /**
  * 分析网站，自动打标签、获取标题、描述、图标地址
@@ -42,6 +66,9 @@ Task4 从传入的 JSON 的 tags 中找到和这个网站主题最为相关若�
 - 从 tags 中最终选出的标签个数最多为 5 个。
 - 如果 tags 中的标签的相关性得分都很低，即你认为这些标签和网站相关性都很低，可以一个也不入选。
 - 如果你认为有其他标签，虽然不在 tags 中的标签中但是和当前网站相关度很高，也可以返回，但是最多 2 个。
+- 仅当 url、head、innerText 中有明确证据时才可选择该标签，不能为了凑数量选择。
+- 如果没有足够证据，请返回空数组 []，不要返回泛化标签。
+- "开发者工具"、"其它" 都是泛化标签，只有在没有更具体标签时才允许返回，且最多返回一个。
 - **最终结果为字符串数组，例如：["A", "B", ...]。**
 
 将处理结果以 JSON 格式输出，并且有以下 key：
@@ -53,9 +80,14 @@ Task4 从传入的 JSON 的 tags 中找到和这个网站主题最为相关若�
 以下是你需要分析的 JSON:
 ${JSON.stringify(payload)}
 `
-  process.env.AI_DEBUG && console.log(prompt)
+  logAiDebug('analyzeWebsite.request', {
+    inputUrl,
+    resolvedUrl: url,
+    tagCount: tags.length,
+    tags,
+  })
 
-  const { output, text } = await generateText({
+  const result = await generateText({
     model: getOpenAICompatibleModel(),
     system:
       '你是一个熟悉 Web HTML、拥有丰富的 SEO 优化经验、可以熟练地提炼归纳信息的高级人工智能机器人。',
@@ -69,8 +101,22 @@ ${JSON.stringify(payload)}
       }),
     }),
   })
-  console.log(text)
-  return output
+  logAiDebug('analyzeWebsite.response', {
+    text: result.text,
+    output: result.output,
+    warnings: result.warnings,
+    finishReason: result.finishReason,
+    usage: result.usage,
+  })
+  const filteredOutput = {
+    ...result.output,
+    tags: filterWebsiteTags(result.output.tags),
+  }
+  logAiDebug('analyzeWebsite.postprocessTags', {
+    rawTags: result.output.tags,
+    filteredTags: filteredOutput.tags,
+  })
+  return filteredOutput
 }
 
 /**
@@ -109,8 +155,13 @@ Task2 请你根据你对传入的 targetTag 的理解，再根据其对应的常
 ${JSON.stringify(payload)}
 `
 
-  process.env.AI_DEBUG && console.log(prompt)
-  const { output } = await generateText({
+  logAiDebug('analyzeRelatedTags.request', {
+    targetTag: payload.targetTag,
+    tagCount: payload.tags.length,
+    tags: payload.tags,
+  })
+
+  const result = await generateText({
     model: getOpenAICompatibleModel(),
     prompt,
     output: Output.object({
@@ -120,5 +171,12 @@ ${JSON.stringify(payload)}
       }),
     }),
   })
-  return output
+  logAiDebug('analyzeRelatedTags.response', {
+    text: result.text,
+    output: result.output,
+    warnings: result.warnings,
+    finishReason: result.finishReason,
+    usage: result.usage,
+  })
+  return result.output
 }

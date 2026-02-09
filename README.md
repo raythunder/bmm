@@ -20,7 +20,6 @@
 
 </div>
 
-
 ## ✨ 功能
 
 基本功能：
@@ -41,6 +40,7 @@
 - [x] 标签排序
 - [x] 爬取网站标题、图标、简介，多个 API 获取网站图标
 - [x] AI 智能解析网站标题、图标、简介、关联标签
+- [x] AI 解析关联标签时，自动创建不存在的标签并回填
 - [x] AI 为标签关联标签
 
 待实现：
@@ -104,9 +104,9 @@ BMM 使用 Drizzle ORM 持久化存储数据，当前开箱即用的支持 SQLit
   
   ![vercel-settings-env](./doc/images/vercel-settings-env.png)
 
-  Vercel 上每个项目都会被自动分配一个域名，如 bmm.vercel.app，如果你最终使用这个域名访问 BMM 服务，那么可以不用配置 `AUTH_URL`，否则必须配置该环境变量。
-</details>
+Vercel 上每个项目都会被自动分配一个域名，如 bmm.vercel.app，如果你最终使用这个域名访问 BMM 服务，那么可以不用配置 `AUTH_URL`，否则必须配置该环境变量。
 
+</details>
 
 4. 在 「Deployments 面板」再重新部署一下即可
 
@@ -144,7 +144,6 @@ pnpm start
 
 ```
 
-
 ## 🤖 接入 AI 服务（可选）
 
 本项目通过 AI 实现了 **分析总结网站、给网站打标签、分析相关联的标签** 的功能，可大大减少维护书签数据的工作量。
@@ -161,7 +160,6 @@ OPENAI_MODEL=deepseek-chat
 ```
 
 对于其它不兼容 OpenAI API 标准的服务，如 Gemini / Anthropic 等，可参考 [AI SDK Providers](https://ai-sdk.dev/providers/ai-sdk-providers) 接入。
-
 
 ## 接入 Github 授权登录（可选）
 
@@ -201,13 +199,12 @@ Github OAuth App 的 Client ID 和 Client Secret 将分别用作环境变量 `AU
   <br>
   它们的值如何设定，简单来说，通过什么地址访问 BMM 服务，就把该地址作为它们的值，例如：
 
-  - http://localhost:3000 - 本地开发
-  - https://bmm.vercel.app - 部署到 Vercel 的平台上，使用 Vercel 为你分配的域名
-  - https://example.com - 用 nginx 代理了本机地址，线上通过域名访问服务
-  - http://10.1.2.3:3000 - 线上通过 IP:PORT 直接访问服务
-  
-</details>
+- http://localhost:3000 - 本地开发
+- https://bmm.vercel.app - 部署到 Vercel 的平台上，使用 Vercel 为你分配的域名
+- https://example.com - 用 nginx 代理了本机地址，线上通过域名访问服务
+- http://10.1.2.3:3000 - 线上通过 IP:PORT 直接访问服务
 
+</details>
 
 <details>
   <summary>
@@ -250,7 +247,6 @@ Github OAuth App 的 Client ID 和 Client Secret 将分别用作环境变量 `AU
   <br>
   此时请先退出登录并重新登录，再继续操作。
 </details>
-
 
 <details>
   <summary>

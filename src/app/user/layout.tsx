@@ -1,6 +1,7 @@
 import { PublicAndUserNavbar } from '@/components/PublicAndUserNavBar'
 import { UserBookmarkController, UserTagController } from '@/controllers'
 import { auth } from '@/lib/auth'
+import { withAuthExpiredRedirect } from '@/lib/auth/redirect-on-auth-expired'
 import { PageRoutes } from '@cfg'
 import { redirect } from 'next/navigation'
 import { PropsWithChildren } from 'react'
@@ -23,10 +24,9 @@ export default async function UserLayout(props: PropsWithChildren) {
     redirect(PageRoutes.LOGIN)
   }
 
-  const [tags, totalBookmarks] = await Promise.all([
-    UserTagController.getAll(),
-    UserBookmarkController.total(),
-  ])
+  const [tags, totalBookmarks] = await withAuthExpiredRedirect(() =>
+    Promise.all([UserTagController.getAll(), UserBookmarkController.total()])
+  )
 
   return (
     <UserContextProvider tags={tags} totalBookmarks={totalBookmarks}>

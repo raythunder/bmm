@@ -12,6 +12,7 @@ import { ReInput, ReTooltip } from '@/components/re-export'
 import { SelectPublicTag } from '@/controllers/PublicTag.controller'
 import useSlug from '@/hooks/useSlug'
 import { AnalyzeRelatedTagsResult } from '@/lib/ai/types'
+import { mapTagNamesToTagIds } from '@/utils'
 import { FieldConstraints } from '@cfg'
 import { Accordion, AccordionItem, addToast, Switch } from '@heroui/react'
 import { Icon } from '@iconify/react'
@@ -98,14 +99,12 @@ export default function TagSlugPage(props: TagSlugPageProps) {
 
   function onReceiveRelatedTags(params: AnalyzeRelatedTagsResult) {
     const { relatedTags, themeColor } = params
+    const relatedTagIds = mapTagNamesToTagIds(relatedTags, props.tags).filter(
+      (id) => id !== slug.number
+    )
     setTag({
       color: themeColor,
-      relatedTagIds: relatedTags.reduce((acc: number[], tagName) => {
-        const foundTag = props.tags.find(({ name }) => name === tagName)
-        if (!foundTag?.id || foundTag.id === slug.number || acc.includes(foundTag.id)) return acc
-        acc.push(foundTag.id)
-        return acc
-      }, []),
+      relatedTagIds,
     })
   }
 

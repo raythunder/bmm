@@ -35,10 +35,15 @@ export default function HomeBody(props: Props) {
   const isClient = useIsClient()
   const isUserSpace = usePageUtil().isUserSpace
   const [state, setState] = useSetState({
+    tags: props.tags || [],
     bookmarks: props.bookmarks || [],
     selectedTags: [] as SelectTag[],
     hasMore: null as boolean | null,
   })
+
+  useEffect(() => {
+    setState({ tags: props.tags || [] })
+  }, [props.tags, setState])
 
   useEffect(() => {
     const bookmarks = sortBookmarksByPinned(props.bookmarks)
@@ -50,18 +55,37 @@ export default function HomeBody(props: Props) {
     const slug = decodeURIComponent(params.slug as string)
     const selectedTags = slug
       .split('+')
-      .map((tagName) => props.tags.find((tag) => tag.name === tagName))
+      .map((tagName) => state.tags.find((tag) => tag.name === tagName))
       .filter(Boolean) as SelectTag[]
     setState({ selectedTags })
-  }, [params.slug, props.tags, setState])
+  }, [params.slug, setState, state.tags])
 
   const bookmarks = state.bookmarks
   const isSearchPage = pathname === (isUserSpace ? PageRoutes.User : PageRoutes.Public).SEARCH
 
   const homeBodyCtx = useMemo<HomeBodyContext>(() => {
     return {
-      tags: props.tags,
+      tags: state.tags,
       bookmarks: state.bookmarks,
+      upsertTags(tags) {
+        setState((oldState) => ({
+          tags: tags.reduce(
+            (acc, tag) => {
+              const index = acc.findIndex((item) => item.id === tag.id)
+              if (index < 0) {
+                return acc.concat(tag)
+              }
+              acc[index] = {
+                ...acc[index],
+                ...tag,
+                relatedTagIds: acc[index].relatedTagIds || tag.relatedTagIds || [],
+              }
+              return [...acc]
+            },
+            [...oldState.tags]
+          ),
+        }))
+      },
       updateBookmark(bookmark) {
         setState((oldState) => ({
           bookmarks: sortBookmarksByPinned(
@@ -78,7 +102,7 @@ export default function HomeBody(props: Props) {
         }))
       },
     }
-  }, [props.tags, setState, state.bookmarks])
+  }, [setState, state.bookmarks, state.tags])
 
   const showEnd = isClient && !!bookmarks.length && state.hasMore === false
 
@@ -90,7 +114,7 @@ export default function HomeBody(props: Props) {
       <div className="xs:ml-56">
         <div className="flex flex-col px-6 pb-14">
           <Banner
-            tags={props.tags}
+            tags={state.tags}
             totalBookmarks={props.totalBookmarks}
             searchedTotalBookmarks={props.searchedTotalBookmarks}
           />

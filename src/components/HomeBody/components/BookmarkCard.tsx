@@ -4,11 +4,9 @@ import { useIsMobile, usePageUtil } from '@/hooks'
 import { useOnClickTag } from '@/hooks/useOnClickTag'
 import { runAction } from '@/utils/client'
 import { getTagLinkAttrs } from '@/utils'
-import { PageRoutes } from '@cfg'
 import { Chip, addToast, cn, Tooltip } from '@heroui/react'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { usePathname } from 'next/navigation'
 import BookmarkEditModal from './BookmarkEditModal'
 import { useHomePageContext } from '../ctx'
 
@@ -20,21 +18,19 @@ interface Props extends SelectBookmark {
 }
 
 export default function BookmarkCard(props: Props) {
-  const { tags, updateBookmark, removeBookmark } = useHomePageContext()
+  const { tags, updateBookmark, removeBookmark, upsertTags } = useHomePageContext()
   const { onClickTag } = useOnClickTag({ tags })
   const isMobile = useIsMobile()
-  const pathname = usePathname()
   const pageUtil = usePageUtil()
   const session = useSession()
   const [state, setState] = useState({
     editModalOpen: false,
   })
 
-  const isHomePage = pathname === PageRoutes.INDEX || pathname === PageRoutes.User.INDEX
   const isAuthenticated = session.status === 'authenticated'
   const canEditInCurrentSpace =
     pageUtil.isUserSpace || (pageUtil.isPublicSpace && !!session.data?.user?.isAdmin)
-  const showCopyAction = isHomePage && isAuthenticated
+  const showCopyAction = isAuthenticated
   const showEditAction = showCopyAction && canEditInCurrentSpace
   const showDeleteAction = showEditAction
   const alwaysShowActions = isMobile || state.editModalOpen
@@ -210,6 +206,7 @@ export default function BookmarkCard(props: Props) {
           isUserSpace={pageUtil.isUserSpace}
           onClose={() => setState({ editModalOpen: false })}
           onSaved={updateBookmark}
+          onTagsUpsert={upsertTags}
         />
       )}
     </div>

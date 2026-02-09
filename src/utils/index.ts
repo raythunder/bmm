@@ -104,6 +104,150 @@ export function testTagNameOrPinyin(
   )
 }
 
+function normalizeTagName(input: string) {
+  return input
+    .normalize('NFKC')
+    .replace(/^[\s"'`“”‘’]+|[\s"'`“”‘’]+$/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase()
+}
+
+function sanitizeAiTagName(input: string) {
+  return input
+    .normalize('NFKC')
+    .replace(/^[\s"'`“”‘’]+|[\s"'`“”‘’]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function isSubsequence(shortText: string, longText: string) {
+  if (!shortText || !longText) return false
+  let shortIndex = 0
+  for (const char of longText) {
+    if (char === shortText[shortIndex]) {
+      shortIndex++
+      if (shortIndex === shortText.length) return true
+    }
+  }
+  return false
+}
+
+function getTextLength(text: string) {
+  return [...text].length
+}
+
+function shouldAllowLooseMatch(left: string, right: string) {
+  const shortLen = Math.min(getTextLength(left), getTextLength(right))
+  const longLen = Math.max(getTextLength(left), getTextLength(right))
+  if (shortLen < 3) return false
+  return shortLen / longLen >= 0.6
+}
+
+function resolveTagId(
+  normalizedName: string,
+  normalizedTags: Array<{ id: TagId; normalizedName: string }>
+) {
+  const exact = normalizedTags.find((tag) => tag.normalizedName === normalizedName)
+  if (exact) {
+    return { matchedTagId: exact.id, matchType: 'exact' as const } as const
+  }
+  const partialMatches = normalizedTags.filter(
+    (tag) =>
+      shouldAllowLooseMatch(normalizedName, tag.normalizedName) &&
+      (tag.normalizedName.includes(normalizedName) ||
+        normalizedName.includes(tag.normalizedName) ||
+        isSubsequence(normalizedName, tag.normalizedName) ||
+        isSubsequence(tag.normalizedName, normalizedName))
+  )
+  if (partialMatches.length === 1) {
+    return { matchedTagId: partialMatches[0].id, matchType: 'loose' as const } as const
+  }
+  return {
+    matchedTagId: null as TagId | null,
+    matchType: null as 'exact' | 'loose' | null,
+    isAmbiguous: partialMatches.length > 1,
+  } as const
+}
+
+export function sanitizeAiTagNames(tagNames: string[] | undefined) {
+  if (!tagNames?.length) return []
+  const normalizedNames = new Set<string>()
+  const result: string[] = []
+
+  for (const tagName of tagNames) {
+    const cleanedName = sanitizeAiTagName(tagName || '')
+    const normalizedName = normalizeTagName(cleanedName)
+    if (!normalizedName || normalizedNames.has(normalizedName)) continue
+    normalizedNames.add(normalizedName)
+    result.push(cleanedName)
+  }
+  return result
+}
+
+/**
+ * 返回 AI 标签中真正“未命中且不歧义”的名称列表，可用于自动创建标签。
+ */
+export function getUnmatchedTagNames(
+  tagNames: string[] | undefined,
+  tags: Array<Pick<SelectTag, 'id' | 'name'>>
+) {
+  if (!tagNames?.length || !tags.length) return sanitizeAiTagNames(tagNames)
+  const normalizedTags = tags
+    .map((tag) => ({
+      id: tag.id,
+      normalizedName: normalizeTagName(tag.name || ''),
+    }))
+    .filter((tag) => !!tag.normalizedName)
+
+  const result: string[] = []
+  for (const tagName of sanitizeAiTagNames(tagNames)) {
+    const normalizedName = normalizeTagName(tagName)
+    if (!normalizedName || getTextLength(normalizedName) < 2) continue
+    const { matchType } = resolveTagId(normalizedName, normalizedTags)
+    if (matchType === 'exact') continue
+    result.push(tagName)
+  }
+  return result
+}
+
+/**
+ * 将 AI 返回的标签名映射为数据库标签 ID
+ * 匹配策略：先标准化后精确匹配，再做“唯一”的包含匹配，避免误命中。
+ */
+export function mapTagNamesToTagIds(
+  tagNames: string[] | undefined,
+  tags: Array<Pick<SelectTag, 'id' | 'name'>>
+) {
+  if (!tagNames?.length || !tags.length) return []
+
+  const normalizedTags = tags
+    .map((tag) => ({
+      id: tag.id,
+      normalizedName: normalizeTagName(tag.name || ''),
+    }))
+    .filter((tag) => !!tag.normalizedName)
+
+  const found = new Set<TagId>()
+  const result: TagId[] = []
+  const push = (tagId: TagId) => {
+    if (found.has(tagId)) return
+    found.add(tagId)
+    result.push(tagId)
+  }
+
+  for (const name of sanitizeAiTagNames(tagNames)) {
+    const normalizedName = normalizeTagName(name)
+    if (!normalizedName) continue
+
+    const { matchedTagId } = resolveTagId(normalizedName, normalizedTags)
+    if (matchedTagId) {
+      push(matchedTagId)
+    }
+  }
+
+  return result
+}
+
 export function getPinyin(word: string) {
   return pinyin(word, { toneType: 'none', nonZh: 'consecutive' })
 }
@@ -114,8 +258,6 @@ export function getPinyin(word: string) {
 export function isServerless() {
   return process.env.SERVERLESS || process.env.VERCEL
 }
-
-
 
 /**
  *

@@ -1,5 +1,7 @@
 import { PublicTagController } from '@/controllers'
+import { auth } from '@/lib/auth'
 import UserTagController from '@/controllers/UserTag.controller'
+import { logAiDebug } from '@/lib/ai/debug'
 import { analyzeWebsite as handler } from '@/lib/ai'
 import { z } from '@/lib/zod'
 import { pageSpace } from '@/utils'
@@ -11,11 +13,31 @@ const schema = z.url()
 async function analyzeWebsite(url: z.input<typeof schema>) {
   const referer = (await headers()).get('referer')
   const space = pageSpace(referer)
-  if (!space.isAdmin && !space.isUser) throw new Error('内部错误')
-  const tags = space.isAdmin
-    ? await PublicTagController.getAllNames()
-    : await UserTagController.getAllNames()
-  return await handler(url, tags)
+  let tags: string[]
+  if (space.isAdmin) {
+    tags = await PublicTagController.getAllNames()
+  } else if (space.isUser) {
+    tags = await UserTagController.getAllNames()
+  } else {
+    const session = await auth()
+    if (session?.user?.isAdmin) {
+      tags = await PublicTagController.getAllNames()
+    } else {
+      tags = await UserTagController.getAllNames()
+    }
+  }
+  logAiDebug('action.analyzeWebsite.input', {
+    referer,
+    space,
+    url,
+    tagCount: tags.length,
+    tags,
+  })
+
+  const result = await handler(url, tags)
+
+  logAiDebug('action.analyzeWebsite.output', result)
+  return result
 }
 
 export const aiAnalyzeWebsiteInput = makeActionInput({

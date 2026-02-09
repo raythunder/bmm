@@ -19,7 +19,8 @@
 }
 
 .rcSelectDropdown {
-  @apply rounded-medium bg-default-100 z-20 overflow-hidden border-0 py-2;
+  @apply rounded-medium bg-default-100 overflow-hidden border-0 py-2;
+  z-index: 2200;
 
   :global(.rc-virtual-list-holder) {
     max-height: initial !important;

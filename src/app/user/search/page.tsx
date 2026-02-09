@@ -1,12 +1,13 @@
 import { UserBookmarkController } from '@/controllers'
 import { findManyBookmarksSchema } from '@/controllers/schemas'
+import { withAuthExpiredRedirect } from '@/lib/auth/redirect-on-auth-expired'
 import { PageRoutes } from '@cfg'
 import { redirect } from 'next/navigation'
 import z from 'zod'
 import UserHomeBody from '../components/UserHomeBody'
 
-export const generateMetadata: GenerateMetadata<{ keyword: string }> = async props => {
-  return { title: `${(await props.searchParams).keyword}的搜索结果` };
+export const generateMetadata: GenerateMetadata<{ keyword: string }> = async (props) => {
+  return { title: `${(await props.searchParams).keyword}的搜索结果` }
 }
 
 export default async function Page(props: RSCPageProps) {
@@ -15,6 +16,8 @@ export default async function Page(props: RSCPageProps) {
     redirect(PageRoutes.User.INDEX)
   }
   const payload: z.input<typeof findManyBookmarksSchema> = { keyword }
-  const res = await UserBookmarkController.findMany(findManyBookmarksSchema.parse(payload))
+  const res = await withAuthExpiredRedirect(() =>
+    UserBookmarkController.findMany(findManyBookmarksSchema.parse(payload))
+  )
   return <UserHomeBody searchedTotalBookmarks={res.total} bookmarks={res.list} />
 }

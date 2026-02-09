@@ -7,6 +7,7 @@
 import { ActionResult } from '@/actions/make-action'
 import { PageRoutes } from '@cfg'
 import { addToast } from '@heroui/react'
+import { getUnmatchedTagNames, sanitizeAiTagNames } from './index'
 
 function jumpToLogin() {
   const path = globalThis.location?.pathname || PageRoutes.INDEX
@@ -50,4 +51,64 @@ export async function runAction<U extends any[], Data>(
   }
   opts.onOk?.(res.data)
   return { ok: true, data: res.data } as const
+}
+
+function mergeTags(
+  currentTags: SelectTag[],
+  nextTags: Array<Pick<SelectTag, 'id' | 'name'> & Partial<SelectTag>>
+) {
+  const merged = [...currentTags]
+  for (const nextTag of nextTags) {
+    const normalizedTag = {
+      ...nextTag,
+      relatedTagIds: nextTag.relatedTagIds || [],
+    } as SelectTag
+    const targetIndex = merged.findIndex((tag) => tag.id === nextTag.id)
+    if (targetIndex < 0) {
+      merged.push(normalizedTag)
+      continue
+    }
+    merged[targetIndex] = {
+      ...merged[targetIndex],
+      ...normalizedTag,
+      relatedTagIds: merged[targetIndex].relatedTagIds || normalizedTag.relatedTagIds,
+    }
+  }
+  return merged
+}
+
+export async function ensureAiTagOptions(params: {
+  aiTagNames: string[] | undefined
+  currentTags: SelectTag[]
+  createTagsAction: (
+    names: string[]
+  ) => ActionResult<any[], Array<Pick<SelectTag, 'id' | 'name'> & Partial<SelectTag>>>
+}) {
+  const aiTagNames = sanitizeAiTagNames(params.aiTagNames)
+  const missingTagNames = getUnmatchedTagNames(aiTagNames, params.currentTags)
+  if (!missingTagNames.length) {
+    return {
+      aiTagNames,
+      tags: params.currentTags,
+      createdTags: [] as SelectTag[],
+    }
+  }
+
+  const createRes = await runAction(params.createTagsAction(missingTagNames), {
+    errToast: { title: '自动创建标签失败' },
+  })
+  if (!createRes.ok) {
+    return {
+      aiTagNames,
+      tags: params.currentTags,
+      createdTags: [] as SelectTag[],
+    }
+  }
+  const createdTags = mergeTags([], createRes.data)
+  const tags = mergeTags(params.currentTags, createdTags)
+  return {
+    aiTagNames,
+    tags,
+    createdTags,
+  }
 }

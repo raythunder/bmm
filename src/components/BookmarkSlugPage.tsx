@@ -5,26 +5,19 @@ import {
   actExtractHtmlInfo,
   actInsertPublicBookmark,
   actInsertUserBookmark,
+  actTryCreatePublicTags,
+  actTryCreateUserTags,
   actUpdatePublicBookmark,
   actUpdateUserBookmark,
 } from '@/actions'
-import { Favicon, ReInput, ReTextarea, SlugPageLayout, TagSelect } from '@/components'
-import { InsertPublicBookmark } from '@/controllers'
+import type { BookmarkEditorValue } from '@/components/BookmarkEditorFields'
+import BookmarkEditorFields from '@/components/BookmarkEditorFields'
+import { SlugPageLayout } from '@/components'
 import { usePageUtil, useSlug } from '@/hooks'
 import { z } from '@/lib/zod'
-import { isValidUrl } from '@/utils'
-import { runAction } from '@/utils/client'
-import { FieldConstraints, IconNames, PageRoutes } from '@cfg'
-import {
-  Button,
-  cn,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownSection,
-  DropdownTrigger,
-  Switch,
-} from '@heroui/react'
+import { mapTagNamesToTagIds } from '@/utils'
+import { ensureAiTagOptions, runAction } from '@/utils/client'
+import { PageRoutes } from '@cfg'
 import { useSetState, useUpdateEffect } from 'ahooks'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -40,7 +33,7 @@ const formSchema = z.object({
 })
 
 type Bookmark = Pick<
-  InsertPublicBookmark,
+  BookmarkEditorValue,
   'url' | 'name' | 'icon' | 'description' | 'relatedTagIds' | 'isPinned'
 >
 
@@ -69,10 +62,21 @@ export default function BookmarkSlugPage(props: BookmarkSlugPageProps) {
     icon: '',
   })
   const [state, setState] = useState({ loading: false })
+  const [tagOptions, setTagOptions] = useState(props.tags)
 
   useUpdateEffect(() => {
-    props.bookmark && setBookmark({ ...props.bookmark })
+    if (!props.bookmark) return
+    setBookmark({
+      ...props.bookmark,
+      icon: props.bookmark.icon || '',
+      description: props.bookmark.description || '',
+      relatedTagIds: props.bookmark.relatedTagIds || [],
+      isPinned: !!props.bookmark.isPinned,
+    })
   }, [props.bookmark])
+  useUpdateEffect(() => {
+    setTagOptions(props.tags)
+  }, [props.tags])
   useUpdateEffect(() => {
     !state.loading && validateAll()
   }, [state.loading])
@@ -92,6 +96,10 @@ export default function BookmarkSlugPage(props: BookmarkSlugPageProps) {
       .every((v) => v)
   }
 
+  function onChangeBookmark(patch: Partial<BookmarkEditorValue>) {
+    setBookmark((prev) => ({ ...prev, ...patch }))
+  }
+
   async function parseWebsite() {
     setState({ loading: true })
     const res = await runAction(actExtractHtmlInfo(bookmark.url))
@@ -102,17 +110,45 @@ export default function BookmarkSlugPage(props: BookmarkSlugPageProps) {
 
   async function aiAnalyzeWebsite() {
     setState({ loading: true })
-    const { data } = await runAction(actAnalyzeWebsite(bookmark.url))
-    setState({ loading: false })
-    if (!data) return
-    process.env.AI_DEBUG && console.log('AI 解析结果：', data)
-    setBookmark({
-      name: data.title,
-      icon: data.favicon,
-      description: data.description,
-      relatedTagIds: props.tags.filter((tag) => data.tags.includes(tag.name)).map((tag) => tag.id),
-    })
+    try {
+      const { data } = await runAction(actAnalyzeWebsite(bookmark.url))
+      if (!data) return
+      process.env.AI_DEBUG && console.log('AI 解析结果：', data)
+      const createTagsAction = pageUtil.isAdminSpace ? actTryCreatePublicTags : actTryCreateUserTags
+      const aiTagRes = await ensureAiTagOptions({
+        aiTagNames: data.tags,
+        currentTags: tagOptions,
+        createTagsAction,
+      })
+      setTagOptions(aiTagRes.tags)
+      let relatedTagIds = mapTagNamesToTagIds(aiTagRes.aiTagNames, aiTagRes.tags)
+      if (!relatedTagIds.length) {
+        const otherTag = aiTagRes.tags.find((tag) => tag.name === '其它')
+        relatedTagIds = otherTag ? [otherTag.id] : []
+      }
+      setBookmark({
+        name: data.title,
+        icon: data.favicon,
+        description: data.description,
+        relatedTagIds,
+      })
+    } finally {
+      setState({ loading: false })
+    }
   }
+
+  async function createTagByName(name: string) {
+    const createTagsAction = pageUtil.isAdminSpace ? actTryCreatePublicTags : actTryCreateUserTags
+    const aiTagRes = await ensureAiTagOptions({
+      aiTagNames: [name],
+      currentTags: tagOptions,
+      createTagsAction,
+    })
+    setTagOptions(aiTagRes.tags)
+    const [tagId] = mapTagNamesToTagIds(aiTagRes.aiTagNames, aiTagRes.tags)
+    return tagId || null
+  }
+
   async function onSave() {
     if (!validateAll()) return
     const action = slug.isNew
@@ -136,150 +172,22 @@ export default function BookmarkSlugPage(props: BookmarkSlugPageProps) {
     })
   }
 
-  function renderParseWebsiteDropdown() {
-    return (
-      <Dropdown placement="right-start">
-        <DropdownTrigger>
-          <Button
-            isIconOnly
-            size="sm"
-            isLoading={state.loading}
-            className={cn('bg-transparent text-xl', !hasValidUrl && 'scale-0')}
-          >
-            <span className={cn('bg-linear-to-r from-pink-500 to-violet-500', IconNames.STARS)} />
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu>
-          <DropdownItem key="parse" onClick={parseWebsite}>
-            解析 HTML
-          </DropdownItem>
-          <DropdownItem key="ai" onClick={aiAnalyzeWebsite}>
-            AI 智能解析
-          </DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
-    )
-  }
-
-  function renderIconDropdown() {
-    if (!isValidUrl(bookmark.url)) return null
-    const { host } = new URL(bookmark.url)
-    const list = [
-      { name: 'Google', src: 'https://www.google.com/s2/favicons?domain=' + host },
-      { name: 'DuckDuckGo', src: `https://icons.duckduckgo.com/ip3/${host}.ico` },
-      { name: 'Yandex', src: `https://favicon.yandex.net/favicon/${host}` },
-      { name: '令川', src: 'https://api.lcll.cc/favicon?host=' + host },
-      { name: 'Favicon.im', src: `https://favicon.im/${host}` },
-      // { name: '一为', src: `https://api.iowen.cn/favicon/${host}.png` },
-      // {
-      //   name: '付之轻',
-      //   src: `https://favicons.fuzqing.workers.dev/api/getFavicon?url=${host}&size=64`,
-      // },
-      { name: 'Xinac', src: `https://api.xinac.net/icon/?url=${host}` },
-      // { name: '15777', src: `https://api.15777.cn/get.php?url=${host}` },
-      // { name: '记磊工具箱', src: `https://tools.ly522.com/ico/favicon.php?url=${host}` },
-      // { name: 'Qqsuu', src: `https://api.qqsuu.cn/api/dm-get?url=${host}` },
-      // { name: 'Uomg', src: 'https://api.uomg.com/api/get.favicon?url=' + host },
-      { name: '流浪猫', src: `https://api.cxr.cool/ico/?url=${host}` },
-    ]
-    return (
-      <Dropdown placement="right-start">
-        <DropdownTrigger>
-          <Button isIconOnly size="sm" className={cn('bg-transparent', !hasValidUrl && 'scale-0')}>
-            <span className="icon-[tabler--api] text-2xl" />
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu>
-          <DropdownSection title="第三方 API 获取图标">
-            {list.map((item) => (
-              <DropdownItem
-                key={item.name}
-                textValue={item.name}
-                onClick={() => setBookmark({ icon: item.src })}
-              >
-                <div className="flex-items-center justify-between">
-                  <span>{item.name}</span>
-                  <Favicon
-                    size={20}
-                    src={item.src}
-                    showSpinner
-                    className="border"
-                    disableLazyLoading
-                    showErrorIconOnFailed
-                  />
-                </div>
-              </DropdownItem>
-            ))}
-          </DropdownSection>
-        </DropdownMenu>
-      </Dropdown>
-    )
-  }
-
-  const hasValidUrl = bookmark.url && !invalidInfos.url
-
   return (
     <SlugPageLayout onSave={onSave}>
-      <ReInput
-        label="网址"
-        type="url"
-        isRequired
-        maxLength={FieldConstraints.MaxLen.URL}
-        isInvalid={!!invalidInfos.url}
-        errorMessage={invalidInfos.url}
-        endContent={renderParseWebsiteDropdown()}
-        value={bookmark.url}
-        onChange={(e) => setBookmark({ url: e.target.value })}
-        onBlur={() => validateItem('url')}
+      <BookmarkEditorFields
+        value={bookmark}
+        tags={tagOptions}
+        invalidInfos={invalidInfos}
+        loading={state.loading}
+        enableHtmlParse
+        enableIconApiPicker
+        showIconPreview
+        onChange={onChangeBookmark}
+        onBlurValidate={validateItem}
+        onAiAnalyze={aiAnalyzeWebsite}
+        onCreateTag={createTagByName}
+        onParseWebsite={parseWebsite}
       />
-      <ReInput
-        label="名称"
-        isRequired
-        maxLength={FieldConstraints.MaxLen.TAG_NAME}
-        isInvalid={!!invalidInfos.name}
-        errorMessage={invalidInfos.name}
-        value={bookmark.name}
-        onValueChange={(v) => setBookmark({ name: v })}
-        onBlur={() => validateItem('name')}
-      />
-      <ReInput
-        label="图标地址"
-        classNames={{ inputWrapper: 'pl-0' }}
-        isInvalid={!!invalidInfos.icon}
-        errorMessage={invalidInfos.icon}
-        onBlur={() => validateItem('icon')}
-        value={bookmark.icon!}
-        onValueChange={(v) => setBookmark({ icon: v })}
-        startContent={
-          bookmark.icon ? (
-            <Favicon className="ml-1.5" src={bookmark.icon} showSpinner showErrorIconOnFailed />
-          ) : (
-            <span className="w-1.5" />
-          )
-        }
-        endContent={renderIconDropdown()}
-      />
-      <ReTextarea
-        label="描述"
-        maxLength={FieldConstraints.MaxLen.BOOKMARK_DESC}
-        value={bookmark.description || ''}
-        onValueChange={(v) => setBookmark({ description: v })}
-      />
-      <div className="flex flex-col gap-2">
-        <label className="text-sm">关联标签</label>
-        <TagSelect
-          tags={props.tags}
-          value={bookmark.relatedTagIds}
-          onChange={(v) => setBookmark({ relatedTagIds: v })}
-        />
-      </div>
-      <div className="flex-items-center justify-between">
-        <label className="text-sm">置顶书签</label>
-        <Switch
-          isSelected={bookmark.isPinned || false}
-          onValueChange={(v) => setBookmark({ isPinned: v })}
-        />
-      </div>
     </SlugPageLayout>
   )
 }
