@@ -17,10 +17,10 @@ services:
       retries: 3
 
   app:
-    image: bmm-local:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # 默认拉取 GHCR 最新镜像；可通过 APP_IMAGE 覆盖，例如：
+    # APP_IMAGE=ghcr.io/raythunder/bmm:sha-xxxx docker compose up -d
+    image: ${APP_IMAGE:-ghcr.io/raythunder/bmm:latest}
+    pull_policy: always
     environment:
       - DB_DRIVER=postgresql
       - DB_CONNECTION_URL=postgresql://postgres:666888@postgres:5432/bmm
