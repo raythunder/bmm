@@ -17,7 +17,10 @@ services:
       retries: 3
 
   app:
-    image: lcclcc/bmm
+    image: bmm-local:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - DB_DRIVER=postgresql
       - DB_CONNECTION_URL=postgresql://postgres:666888@postgres:5432/bmm
