@@ -4,6 +4,7 @@ import {
   CredentialsController,
   PublicBookmarkController,
   PublicTagController,
+  UserAiModelController,
   UserBookmarkController,
   UserTagController,
 } from '@/controllers'
@@ -46,6 +47,7 @@ export const actInsertUserBookmark = make(UserBookmarkController.insert)
 export const actQueryUserBookmark = make(UserBookmarkController.query)
 export const actDeleteUserBookmark = make(UserBookmarkController.delete)
 export const actUpdateUserBookmark = make(UserBookmarkController.update)
+export const actSaveUserAiModelSettings = make(UserAiModelController.save)
 
 /// 解析网站、标签
 export const actExtractHtmlInfo = make(extractHtmlInfoInput)

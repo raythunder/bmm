@@ -15,6 +15,7 @@ import { z } from '@/lib/zod'
 import { mapTagNamesToTagIds } from '@/utils'
 import { ensureAiTagOptions, runAction } from '@/utils/client'
 import { useSetState } from 'ahooks'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { fromZodError } from 'zod-validation-error'
 
@@ -60,6 +61,7 @@ function buildFormFromBookmark(bookmark: SelectBookmark): BookmarkForm {
 }
 
 export default function BookmarkEditModal(props: Props) {
+  const router = useRouter()
   const [tagOptions, setTagOptions] = useState<SelectTag[]>(props.tags)
   const [form, setForm] = useSetState<BookmarkForm>(() => buildFormFromBookmark(props.bookmark))
   const initializedBookmarkIdRef = useRef<BookmarkId | null>(null)
@@ -203,6 +205,7 @@ export default function BookmarkEditModal(props: Props) {
       })
     }
     props.onClose()
+    router.refresh()
     setState({ saving: false })
   }
 

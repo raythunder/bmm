@@ -6,7 +6,7 @@ import { getOpenAICompatibleModel } from './providers'
 describe('AI module', { timeout: 30 * 1000 }, () => {
   test('ai-sdk 测试', async () => {
     const res = await generateText({
-      model: getOpenAICompatibleModel(),
+      model: await getOpenAICompatibleModel(),
       prompt: '你好',
     })
     console.log(res.text)

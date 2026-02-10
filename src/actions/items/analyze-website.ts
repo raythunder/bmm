@@ -11,6 +11,8 @@ import { makeActionInput } from '../make-action'
 const schema = z.url()
 
 async function analyzeWebsite(url: z.input<typeof schema>) {
+  const session = await auth()
+  const userId = session?.user?.id
   const referer = (await headers()).get('referer')
   const space = pageSpace(referer)
   let tags: string[]
@@ -19,7 +21,6 @@ async function analyzeWebsite(url: z.input<typeof schema>) {
   } else if (space.isUser) {
     tags = await UserTagController.getAllNames()
   } else {
-    const session = await auth()
     if (session?.user?.isAdmin) {
       tags = await PublicTagController.getAllNames()
     } else {
@@ -34,7 +35,7 @@ async function analyzeWebsite(url: z.input<typeof schema>) {
     tags,
   })
 
-  const result = await handler(url, tags)
+  const result = await handler(url, tags, userId)
 
   logAiDebug('action.analyzeWebsite.output', result)
   return result

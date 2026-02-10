@@ -9,7 +9,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { PropsWithChildren } from 'react'
 
 function Wrapper(props: PropsWithChildren) {
-  return <header className="flex-col gap-4 py-8 flex-center">{props.children}</header>
+  return <header className="flex-center flex-col gap-4 py-8">{props.children}</header>
 }
 
 const H1_CLS = 'text-3xl font-bold flex-center text-foreground-700'
@@ -33,7 +33,7 @@ export default function Banner(props: Props) {
   if (pathname === routes.INDEX) {
     return (
       <Wrapper>
-        <GradientText
+        {/* <GradientText
           className="text-6xl"
           animationSpeed={5}
           colors={['#f86d60', '#9c57f6', '#19b6f5', '#78DDBC', '#E2C66A']}
@@ -41,9 +41,9 @@ export default function Banner(props: Props) {
           {pageUtil.isUserSpace ? session.data?.user.name : WEBSITE_NAME}
         </GradientText>
         <div className="text-foreground-800">收纳、分享、探索优质网站</div>
-        <div className="text-sm text-foreground-500">
+        <div className="text-foreground-500 text-sm">
           已收录 {totalBookmarks} 个书签，共 {tags.length} 个标签
-        </div>
+        </div> */}
       </Wrapper>
     )
   }
@@ -62,7 +62,7 @@ export default function Banner(props: Props) {
               <Chip
                 key={tag.id}
                 variant="flat"
-                className="cursor-pointer text-foreground-500 hover:text-foreground-800"
+                className="text-foreground-500 hover:text-foreground-800 cursor-pointer"
                 onClose={() => {
                   const tagNames = selectedTags
                     .map((t) => (t.name === tag.name ? null : t.name))
@@ -87,7 +87,7 @@ export default function Banner(props: Props) {
                 <Chip
                   key={id}
                   variant="flat"
-                  className="cursor-pointer text-foreground-500 hover:text-foreground-800 active:opacity-50"
+                  className="text-foreground-500 hover:text-foreground-800 cursor-pointer active:opacity-50"
                   as="a"
                   {...getTagLinkAttrs(tag)}
                   onClick={(e) => onClickTag({ tag, event: e as any })}
@@ -106,7 +106,7 @@ export default function Banner(props: Props) {
     return (
       <Wrapper>
         <h1 className={H1_CLS}>随便看看</h1>
-        <div className="text-sm text-zinc-400 flex-center">探索随机网站，发现精彩内容</div>
+        <div className="flex-center text-sm text-zinc-400">探索随机网站，发现精彩内容</div>
       </Wrapper>
     )
   }
@@ -118,7 +118,7 @@ export default function Banner(props: Props) {
         <h1 className={H1_CLS}>搜索结果</h1>
         <div className="text-sm text-zinc-400">
           关键词：
-          <strong className="italic text-foreground-600 underline underline-offset-4">
+          <strong className="text-foreground-600 italic underline underline-offset-4">
             {keyword?.toUpperCase()}
           </strong>
         </div>

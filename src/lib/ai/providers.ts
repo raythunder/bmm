@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import UserAiModelController from '@/controllers/UserAiModel.controller'
 
-export function getOpenAICompatibleModel() {
+function getOpenAICompatibleConfigFromEnv() {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('请配置环境变量 OPENAI_API_KEY')
   }
@@ -10,10 +11,22 @@ export function getOpenAICompatibleModel() {
   if (!process.env.OPENAI_MODEL) {
     throw new Error('请配置环境变量 OPENAI_MODEL')
   }
+  return {
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: process.env.OPENAI_BASE_URL,
+    model: process.env.OPENAI_MODEL,
+  }
+}
+
+export async function getOpenAICompatibleModel(userId?: UserId) {
+  const runtimeConfig =
+    (await UserAiModelController.resolveActiveOpenAIConfigByUserId(userId)) ||
+    getOpenAICompatibleConfigFromEnv()
+
   const provider = createOpenAICompatible({
-    apiKey: process.env.OPENAI_API_KEY!,
-    baseURL: process.env.OPENAI_BASE_URL!,
+    apiKey: runtimeConfig.apiKey,
+    baseURL: runtimeConfig.baseURL,
     name: 'openai-compatible',
   })
-  return provider(process.env.OPENAI_MODEL!)
+  return provider(runtimeConfig.model)
 }

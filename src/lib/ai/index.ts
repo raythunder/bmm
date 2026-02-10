@@ -31,9 +31,10 @@ function filterWebsiteTags(rawTags: string[] | undefined) {
 /**
  * 分析网站，自动打标签、获取标题、描述、图标地址
  */
-export async function analyzeWebsite(inputUrl: string, tags: string[] = []) {
+export async function analyzeWebsite(inputUrl: string, tags: string[] = [], userId?: UserId) {
   let { html, url } = await fetchHtml(inputUrl)
   const payload = await createPayload({ html, url, tags })
+  const model = await getOpenAICompatibleModel(userId)
   const prompt = `
 我将会给你一份 JSON，它有这些 Key：
 - url: 待分析网站的链接地址
@@ -88,7 +89,7 @@ ${JSON.stringify(payload)}
   })
 
   const result = await generateText({
-    model: getOpenAICompatibleModel(),
+    model,
     system:
       '你是一个熟悉 Web HTML、拥有丰富的 SEO 优化经验、可以熟练地提炼归纳信息的高级人工智能机器人。',
     prompt,
@@ -122,7 +123,7 @@ ${JSON.stringify(payload)}
 /**
  * 传入一个标签名称，从数据库中读取所有标签名称，根据名字语义分析和传入标签相关的书签
  */
-export async function analyzeRelatedTags(tag: string, tags: string[]) {
+export async function analyzeRelatedTags(tag: string, tags: string[], userId?: UserId) {
   const payload = {
     targetTag: tag,
     tags,
@@ -162,7 +163,7 @@ ${JSON.stringify(payload)}
   })
 
   const result = await generateText({
-    model: getOpenAICompatibleModel(),
+    model: await getOpenAICompatibleModel(userId),
     prompt,
     output: Output.object({
       schema: z.object({

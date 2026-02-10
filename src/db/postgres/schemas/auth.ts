@@ -14,6 +14,7 @@ export const users = pgTable('user', {
   emailVerified: timestamp('emailVerified', { mode: 'date' }),
   image: text('image'),
   role: roleEnum('role').default('user'),
+  aiModelSettings: text('aiModelSettings'),
   createdAt: timestamp('createdAt', { mode: 'date' }).$defaultFn(() => new Date()),
 })
 

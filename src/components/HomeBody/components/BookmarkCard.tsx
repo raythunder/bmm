@@ -1,12 +1,13 @@
 import { actDeletePublicBookmark, actDeleteUserBookmark } from '@/actions'
 import Favicon from '@/components/Favicon'
+import MyModal from '@/components/MyModal'
 import { useIsMobile, usePageUtil } from '@/hooks'
 import { useOnClickTag } from '@/hooks/useOnClickTag'
 import { runAction } from '@/utils/client'
 import { getTagLinkAttrs } from '@/utils'
 import { Chip, addToast, cn, Tooltip } from '@heroui/react'
-import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useState } from 'react'
 import BookmarkEditModal from './BookmarkEditModal'
 import { useHomePageContext } from '../ctx'
 
@@ -23,9 +24,9 @@ export default function BookmarkCard(props: Props) {
   const isMobile = useIsMobile()
   const pageUtil = usePageUtil()
   const session = useSession()
-  const [state, setState] = useState({
-    editModalOpen: false,
-  })
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const isAuthenticated = session.status === 'authenticated'
   const canEditInCurrentSpace =
@@ -33,7 +34,7 @@ export default function BookmarkCard(props: Props) {
   const showCopyAction = isAuthenticated
   const showEditAction = showCopyAction && canEditInCurrentSpace
   const showDeleteAction = showEditAction
-  const alwaysShowActions = isMobile || state.editModalOpen
+  const alwaysShowActions = isMobile || editModalOpen || deleteConfirmOpen
 
   const generateLinkTitle = () => {
     const baseTitle = `${props.name} - ${props.description}`
@@ -67,26 +68,33 @@ export default function BookmarkCard(props: Props) {
 
   function onClickEdit(evt: React.MouseEvent<HTMLButtonElement>) {
     evt.stopPropagation()
-    setState({ editModalOpen: true })
+    setEditModalOpen(true)
   }
 
-  async function onClickDelete(evt: React.MouseEvent<HTMLButtonElement>) {
+  function onClickDelete(evt: React.MouseEvent<HTMLButtonElement>) {
     evt.stopPropagation()
-    const isConfirmed = globalThis.confirm(`确认删除站点「${props.name}」？此操作不可恢复。`)
-    if (!isConfirmed) return
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDeleteBookmark() {
+    setDeleting(true)
     const action = pageUtil.isUserSpace
       ? actDeleteUserBookmark({ id: props.id })
       : actDeletePublicBookmark({ id: props.id })
-    await runAction(action, {
+    const res = await runAction(action, {
       okMsg: '书签已删除',
       onOk() {
         removeBookmark(props.id)
       },
     })
+    if (res.ok) {
+      setDeleteConfirmOpen(false)
+    }
+    setDeleting(false)
   }
 
   function onClickCard(evt: React.MouseEvent<HTMLDivElement>) {
-    if (state.editModalOpen) return
+    if (editModalOpen || deleteConfirmOpen) return
     const target = evt.target as Node | null
     if (target && !evt.currentTarget.contains(target)) return
     window.open(props.url, '_blank')
@@ -200,15 +208,30 @@ export default function BookmarkCard(props: Props) {
       )}
       {showEditAction && (
         <BookmarkEditModal
-          isOpen={state.editModalOpen}
+          isOpen={editModalOpen}
           bookmark={props}
           tags={tags}
           isUserSpace={pageUtil.isUserSpace}
-          onClose={() => setState({ editModalOpen: false })}
+          onClose={() => setEditModalOpen(false)}
           onSaved={updateBookmark}
           onTagsUpsert={upsertTags}
         />
       )}
+      <MyModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => !deleting && setDeleteConfirmOpen(false)}
+        onOk={confirmDeleteBookmark}
+        title="确认删除站点"
+        okButtonProps={{
+          color: 'danger',
+          isLoading: deleting,
+          children: '删除',
+        }}
+      >
+        <p className="text-foreground-600 text-sm">
+          确认删除站点「{props.name}」？此操作不可恢复。
+        </p>
+      </MyModal>
     </div>
   )
 }

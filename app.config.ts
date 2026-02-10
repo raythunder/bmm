@@ -90,6 +90,7 @@ export const IconNames = {
   Tabler: {
     USER: 'icon-[tabler--user]',
     DASHBOARD: 'icon-[tabler--layout-dashboard]',
+    SETTINGS: 'icon-[tabler--settings]',
     LOGOUT: 'icon-[tabler--logout-2]',
     EXCLAMATION_CIRCLE: 'icon-[tabler--exclamation-circle]',
   },

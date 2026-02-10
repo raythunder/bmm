@@ -43,11 +43,11 @@ export function NavUser() {
             itemClasses={{ base: 'pr-4' }}
             topContent={
               <div>
-                <div className="mt-2 gap-2 flex-items-center">
+                <div className="flex-items-center mt-2 gap-2">
                   <Avatar size="sm" src={user.image!} showFallback />
-                  <span className="translate-y-0.5 text-foreground-500">{user.name}</span>
+                  <span className="text-foreground-500 translate-y-0.5">{user.name}</span>
                 </div>
-                <Divider className="mb-2 mt-4" />
+                <Divider className="mt-4 mb-2" />
               </div>
             }
           >
@@ -64,6 +64,12 @@ export function NavUser() {
                 startContent={<span className={cn(IconNames.Huge.IMPORT, 'text-base')} />}
               >
                 导入浏览器书签
+              </ListboxItem>
+              <ListboxItem
+                href={PageRoutes.User.SETTINGS}
+                startContent={<span className={cn(IconNames.Tabler.SETTINGS, 'text-base')} />}
+              >
+                模型设置
               </ListboxItem>
             </ListboxSection>
             <ListboxSection showDivider hidden={!user.isAdmin} className="max-xs:hidden">

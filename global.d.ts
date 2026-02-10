@@ -15,6 +15,9 @@ declare global {
       | 'VERCEL' // 是否运行在 Vercel 平台中
       | 'AUTH_GITHUB_ID'
       | 'AUTH_GITHUB_SECRET'
+      | 'OPENAI_API_KEY'
+      | 'OPENAI_BASE_URL'
+      | 'OPENAI_MODEL'
     type RequiredVariables = 'DB_CONNECTION_URL'
     type ExtraVariables = Partial<Record<OptionalVariables, string>> &
       Record<RequiredVariables, string> & { DB_DRIVER: 'postgresql' | 'sqlite' } // 暂时只接入 postgresql 和 sqlite

@@ -159,6 +159,14 @@ OPENAI_BASE_URL=https://api.deepseek.com/v1
 OPENAI_MODEL=deepseek-chat
 ```
 
+如果你希望在应用内切换不同模型配置，可在登录后通过右上角头像菜单进入 **模型设置** 页面：
+
+- 支持创建多个配置（`OPENAI_BASE_URL`、`OPENAI_API_KEY`、配置名称）
+- 每个配置支持维护多个模型
+- 可指定一个“当前激活配置”，并为该配置选择唯一的“当前激活模型”
+
+AI 调用时将优先使用“当前激活配置 + 当前激活模型”；如果未设置，则回退到 `.env` 中的 `OPENAI_*` 变量。
+
 对于其它不兼容 OpenAI API 标准的服务，如 Gemini / Anthropic 等，可参考 [AI SDK Providers](https://ai-sdk.dev/providers/ai-sdk-providers) 接入。
 
 ## 接入 Github 授权登录（可选）
