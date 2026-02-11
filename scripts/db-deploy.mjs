@@ -34,25 +34,62 @@ async function runNonInteractivePush() {
   // drizzle-kit 在某些变更下会弹交互确认（例如新增 unique 约束到非空表）。
   // 生产容器里没有人工输入，这里通过持续回车来选择默认项，避免启动卡死。
   // 注意：默认选项通常是安全项（不截断/不破坏），若因此导致变更被中止，会在下方显式报错退出。
-  const command = "yes '' | ./node_modules/.bin/drizzle-kit push --verbose"
+  const command =
+    "(while true; do printf '\\r'; sleep 1; done) | ./node_modules/.bin/drizzle-kit push --verbose"
   await new Promise((resolve, reject) => {
     const child = spawn('sh', ['-lc', command], { stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
+    let settled = false
+    const idleTimeoutMs = 120_000
+    let idleTimer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      child.kill('SIGTERM')
+      reject(
+        new Error(
+          `drizzle-kit push 超时（${idleTimeoutMs / 1000}s 无输出）。已中止以避免容器卡死，请查看前序日志并手动处理数据库变更。`
+        )
+      )
+    }, idleTimeoutMs)
+
+    const refreshIdleTimer = () => {
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        child.kill('SIGTERM')
+        reject(
+          new Error(
+            `drizzle-kit push 超时（${idleTimeoutMs / 1000}s 无输出）。已中止以避免容器卡死，请查看前序日志并手动处理数据库变更。`
+          )
+        )
+      }, idleTimeoutMs)
+    }
 
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString()
       stdout += text
+      refreshIdleTimer()
       process.stdout.write(text)
     })
     child.stderr.on('data', (chunk) => {
       const text = chunk.toString()
       stderr += text
+      refreshIdleTimer()
       process.stderr.write(text)
     })
 
-    child.on('error', reject)
+    child.on('error', (err) => {
+      if (settled) return
+      settled = true
+      clearTimeout(idleTimer)
+      reject(err)
+    })
     child.on('close', (code) => {
+      if (settled) return
+      settled = true
+      clearTimeout(idleTimer)
       if (stdout.includes('All changes were aborted')) {
         return reject(
           new Error('数据库变更被安全策略中止（未执行破坏性变更）。请先手动处理对应数据后重启应用。')
