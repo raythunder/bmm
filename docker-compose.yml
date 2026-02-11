@@ -16,19 +16,6 @@ services:
       timeout: 3s
       retries: 3
 
-  migrate:
-    # 自动同步数据库结构（用于版本升级）
-    image: ${APP_IMAGE:-ghcr.io/raythunder/bmm:latest}
-    pull_policy: always
-    environment:
-      - DB_DRIVER=postgresql
-      - DB_CONNECTION_URL=postgresql://postgres:666888@postgres:5432/bmm
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: 'no'
-    command: sh -lc "pnpm drizzle-kit push --force"
-
   app:
     # 默认拉取 GHCR 最新镜像；可通过 APP_IMAGE 覆盖，例如：
     # APP_IMAGE=ghcr.io/raythunder/bmm:sha-xxxx docker compose up -d
@@ -42,8 +29,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     command: pnpm start
 
 volumes:

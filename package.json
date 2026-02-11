@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx scripts/db-init.mjs && next dev",
     "build": "tsx scripts/db-init.mjs -P && next build",
-    "start": "tsx scripts/db-init.mjs -P && next start",
+    "start": "tsx scripts/db-deploy.mjs -P && next start",
     "lint": "next lint",
     "test": "vitest",
     "studio": "drizzle-kit studio",
@@ -14,6 +14,8 @@
     "db:test": "tsx scripts/db-test.mjs",
     "执行数据库初始化/迁移": "⬇️",
     "db:migrate": "tsx scripts/db-migration.mjs",
+    "部署时自动迁移（优先使用 migrations，无迁移文件时回退 push）": "⬇️",
+    "db:deploy": "tsx scripts/db-deploy.mjs",
     "根据项目中的 schema，更新数据库（忽略 migrations，可能会导致数据丢失）": "⬇️",
     "db:push": "tsx scripts/db-push.mjs",
     "以上这些命令行均允许加上 -P 或 --production，以加载正式环境变量，如 pnpm db:test -P": ""
