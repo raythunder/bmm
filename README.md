@@ -175,7 +175,7 @@ AI 调用时将优先使用“当前激活配置 + 当前激活模型”；如�
 - 支持软暂停：停止分发新任务，已开始的任务会先执行完成
 
 当前实现基于单实例应用进程（Docker 单实例）执行后台任务；若服务重启，运行中的任务会被标记为失败，可再次手动启动。
-当前镜像的 `pnpm start` 会在启动前自动执行数据库同步（优先使用 migrations；若未检测到迁移文件则回退为 `drizzle-kit push`），已部署实例升级后拉取新镜像并重启容器即可。
+当前镜像的 `pnpm start` 会在启动前自动执行数据库同步（优先使用 migrations；若未检测到迁移文件则回退为 `drizzle-kit push` 的非交互模式），已部署实例升级后拉取新镜像并重启容器即可。若遇到涉及旧数据冲突的变更，启动日志会给出失败原因，按提示处理后重启即可。
 
 对于其它不兼容 OpenAI API 标准的服务，如 Gemini / Anthropic 等，可参考 [AI SDK Providers](https://ai-sdk.dev/providers/ai-sdk-providers) 接入。
 
