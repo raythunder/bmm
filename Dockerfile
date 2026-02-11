@@ -5,7 +5,8 @@
 
 
 FROM node:24-alpine AS base
-RUN corepack enable && pnpm -v
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@10.24.0 --activate && pnpm -v
 
 
 FROM base AS deps
