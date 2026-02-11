@@ -1,6 +1,6 @@
 'use client'
 
-import { NavUser, ReButton, ThemeToggle } from '@/components'
+import { NavUser, ReButton, ThemeToggle, UserAiBatchUpdateDrawer } from '@/components'
 import { IconButtonProps, NavBarProps } from '@/components/common'
 import { MobileTagPicker } from '@/components/MobileTagPicker'
 import { usePageUtil } from '@/hooks'
@@ -72,7 +72,9 @@ export function PublicAndUserNavbar(props: Props) {
   const user = session?.data?.user
   const [state, setState] = useSetState({
     isSelectedMenuToggle: false,
+    isAiBatchDrawerOpen: false,
   })
+  const showAiBatchUpdateAction = isUserSpace && pathname.startsWith(PageRoutes.User.tags())
 
   function showSearchInput() {
     if (!totalBookmarks) return false
@@ -87,85 +89,99 @@ export function PublicAndUserNavbar(props: Props) {
   }
 
   return (
-    <Navbar
-      {...NavBarProps}
-      isMenuOpen={state.isSelectedMenuToggle}
-      onMenuOpenChange={(v) => setState({ isSelectedMenuToggle: v })}
-    >
-      <NavbarBrand className="max-xs:basis-20 xs:basis-56 shrink-0 grow-0">
-        <Link href={routes.INDEX} className="flex-items-center gap-4">
-          <Image src={Assets.LOGO_SVG} width={32} height={32} alt="logo" priority />
-          <h3 className="text-foreground-700 translate-y-0.5 font-mono text-2xl font-light">
-            {isUserSpace ? user?.name : WEBSITE_NAME}
-          </h3>
-        </Link>
-      </NavbarBrand>
-      <NavbarContent justify="end" className="gap-0">
-        {/* pathname 发生变化时，重新渲染 SearchInput */}
-        {showSearchInput() && <SearchInput key={pathname} className="max-xs:hidden mr-4 w-72" />}
-        {isUserSpace &&
-          UserLinkGroups.map((group) => (
+    <>
+      <Navbar
+        {...NavBarProps}
+        isMenuOpen={state.isSelectedMenuToggle}
+        onMenuOpenChange={(v) => setState({ isSelectedMenuToggle: v })}
+      >
+        <NavbarBrand className="max-xs:basis-20 xs:basis-56 shrink-0 grow-0">
+          <Link href={routes.INDEX} className="flex-items-center gap-4">
+            <Image src={Assets.LOGO_SVG} width={32} height={32} alt="logo" priority />
+            <h3 className="text-foreground-700 translate-y-0.5 font-mono text-2xl font-light">
+              {isUserSpace ? user?.name : WEBSITE_NAME}
+            </h3>
+          </Link>
+        </NavbarBrand>
+        <NavbarContent justify="end" className="gap-0">
+          {/* pathname 发生变化时，重新渲染 SearchInput */}
+          {showSearchInput() && <SearchInput key={pathname} className="max-xs:hidden mr-4 w-72" />}
+          {isUserSpace &&
+            UserLinkGroups.map((group) => (
+              <ReButton
+                key={group.key}
+                {...IconButtonProps}
+                className={cn(IconButtonProps.className, 'max-xs:hidden')}
+                href={group.list[1].href}
+                tooltip={{
+                  placement: 'top-start',
+                  content: (
+                    <Listbox label={group.key}>
+                      {group.list.map((el) => (
+                        <ListboxItem
+                          key={el.label}
+                          href={el.href}
+                          className="w-28"
+                          startContent={<span className={cn(el.icon, 'text-base')} />}
+                        >
+                          {el.label}
+                        </ListboxItem>
+                      ))}
+                    </Listbox>
+                  ),
+                }}
+              >
+                <span className={group.icon} />
+              </ReButton>
+            ))}
+          <ReButton
+            {...IconButtonProps}
+            className={cn(IconButtonProps.className, !totalBookmarks && 'hidden', 'max-xs:hidden')}
+            href={isUserSpace ? PageRoutes.User.RANDOM : PageRoutes.Public.RANDOM}
+            tooltip="随便看看"
+            startContent={<span className={IconNames.SIEVE} />}
+          />
+          {showAiBatchUpdateAction && (
             <ReButton
-              key={group.key}
               {...IconButtonProps}
               className={cn(IconButtonProps.className, 'max-xs:hidden')}
-              href={group.list[1].href}
-              tooltip={{
-                placement: 'top-start',
-                content: (
-                  <Listbox label={group.key}>
-                    {group.list.map((el) => (
-                      <ListboxItem
-                        key={el.label}
-                        href={el.href}
-                        className="w-28"
-                        startContent={<span className={cn(el.icon, 'text-base')} />}
-                      >
-                        {el.label}
-                      </ListboxItem>
-                    ))}
-                  </Listbox>
-                ),
-              }}
-            >
-              <span className={group.icon} />
-            </ReButton>
-          ))}
-        <ReButton
-          {...IconButtonProps}
-          className={cn(IconButtonProps.className, !totalBookmarks && 'hidden', 'max-xs:hidden')}
-          href={isUserSpace ? PageRoutes.User.RANDOM : PageRoutes.Public.RANDOM}
-          tooltip="随便看看"
-          startContent={<span className={IconNames.SIEVE} />}
-        />
-        <ThemeToggle />
-        <ReButton
-          {...IconButtonProps}
-          href={ExternalLinks.REPO}
-          target="_blank"
-          rel="noreferrer"
-          tooltip={{
-            placement: 'bottom-end',
-            content: (
-              <div className="flex-center gap-2 p-2">
-                <span className="icon-[tabler--star-filled] text-xl text-yellow-400" />
-                <span>欢迎 Star</span>
-              </div>
-            ),
-          }}
-        >
-          <span className={IconNames.GITHUB} />
-        </ReButton>
-        <NavUser />
-      </NavbarContent>
-      <NavbarMenuToggle className="xs:hidden" />
-      <NavbarMenu className={cn(Background.CLASS)}>
-        <MobileTagPicker
-          tags={tags}
-          onCloseMenu={() => setState({ isSelectedMenuToggle: false })}
-        />
-      </NavbarMenu>
-
+              onClick={() => setState({ isAiBatchDrawerOpen: true })}
+              tooltip="批量 AI 更新"
+              startContent={<span className={IconNames.STARS} />}
+            />
+          )}
+          <ThemeToggle />
+          <ReButton
+            {...IconButtonProps}
+            href={ExternalLinks.REPO}
+            target="_blank"
+            rel="noreferrer"
+            tooltip={{
+              placement: 'bottom-end',
+              content: (
+                <div className="flex-center gap-2 p-2">
+                  <span className="icon-[tabler--star-filled] text-xl text-yellow-400" />
+                  <span>欢迎 Star</span>
+                </div>
+              ),
+            }}
+          >
+            <span className={IconNames.GITHUB} />
+          </ReButton>
+          <NavUser />
+        </NavbarContent>
+        <NavbarMenuToggle className="xs:hidden" />
+        <NavbarMenu className={cn(Background.CLASS)}>
+          <MobileTagPicker
+            tags={tags}
+            onCloseMenu={() => setState({ isSelectedMenuToggle: false })}
+          />
+        </NavbarMenu>
+      </Navbar>
+      <UserAiBatchUpdateDrawer
+        isOpen={state.isAiBatchDrawerOpen}
+        onClose={() => setState({ isAiBatchDrawerOpen: false })}
+      />
       <div role="navigation" className="fixed left-full">
         {tags.map((tag) => (
           <a key={tag.id} {...getTagLinkAttrs(tag)}>
@@ -173,6 +189,6 @@ export function PublicAndUserNavbar(props: Props) {
           </a>
         ))}
       </div>
-    </Navbar>
+    </>
   )
 }

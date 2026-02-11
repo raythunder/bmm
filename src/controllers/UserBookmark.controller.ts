@@ -19,9 +19,9 @@ type SelectUserBookmark = TagIdsExt & typeof userBookmarks.$inferSelect
 /**
  * 完全更新 PublicBookmarkToTag 表，使与 bId 关联关联的 tId 全是 tagIds 中的 id
  */
-async function fullSetBookmarkToTag(bId: BookmarkId, tagIds?: TagId[]) {
+async function fullSetBookmarkToTag(bId: BookmarkId, tagIds?: TagId[], userId?: UserId) {
   if (!tagIds?.length) return
-  const userId = await getAuthedUserId()
+  userId ||= await getAuthedUserId()
   tagIds = await UserTagController.filterUserTagIds(userId, tagIds)
   const task = [
     tagIds.length &&
@@ -72,10 +72,13 @@ const UserBookmarkController = {
       relatedTagIds: res.relatedTagIds.map((el) => el.tId),
     }
   },
-  async update(bookmark: Partial<SelectUserBookmark> & Pick<SelectUserBookmark, 'id'>) {
+  async updateByUserId(
+    userId: UserId,
+    bookmark: Partial<SelectUserBookmark> & Pick<SelectUserBookmark, 'id'>
+  ) {
     const { relatedTagIds, id, ...resetBookmark } = bookmark
     const tasks = []
-    tasks.push(fullSetBookmarkToTag(id, relatedTagIds))
+    tasks.push(fullSetBookmarkToTag(id, relatedTagIds, userId))
     if (Object.keys(resetBookmark).length) {
       if (resetBookmark.name && !resetBookmark.pinyin) {
         resetBookmark.pinyin = getPinyin(resetBookmark.name)
@@ -87,11 +90,14 @@ const UserBookmarkController = {
             ...resetBookmark,
             updatedAt: new Date(),
           })
-          .where(userLimiter(await getAuthedUserId(), id))
+          .where(userLimiter(userId, id))
           .returning()
       )
     }
     await Promise.all(tasks)
+  },
+  async update(bookmark: Partial<SelectUserBookmark> & Pick<SelectUserBookmark, 'id'>) {
+    return UserBookmarkController.updateByUserId(await getAuthedUserId(), bookmark)
   },
   async delete(bookmark: Pick<SelectUserBookmark, 'id'>) {
     const res = await db

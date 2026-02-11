@@ -4,6 +4,7 @@ import {
   alias,
   boolean,
   integer,
+  pgEnum,
   pgTable,
   primaryKey,
   serial,
@@ -99,6 +100,38 @@ export const userBookmarkToTag = pgTable(
   (table) => [primaryKey({ columns: [table.bId, table.tId] })]
 )
 
+export const userAiBatchJobStatusEnum = pgEnum('userAiBatchJobStatus', [
+  'running',
+  'pausing',
+  'paused',
+  'completed',
+  'failed',
+])
+
+export const userAiBatchJobs = pgTable('userAiBatchJobs', {
+  id: serial('id').primaryKey(),
+  userId: varchar('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  status: userAiBatchJobStatusEnum('status').notNull().default('running'),
+  targetTagName: varchar('targetTagName', { length: FieldConstraints.MaxLen.TAG_NAME }).notNull(),
+  concurrency: integer('concurrency').notNull().default(3),
+  totalCount: integer('totalCount').notNull().default(0),
+  processedCount: integer('processedCount').notNull().default(0),
+  successCount: integer('successCount').notNull().default(0),
+  failedCount: integer('failedCount').notNull().default(0),
+  pauseRequested: boolean('pauseRequested').notNull().default(false),
+  lastError: varchar('lastError', { length: 500 }),
+  startedAt: timestamp('startedAt', { mode: 'date' }),
+  finishedAt: timestamp('finishedAt', { mode: 'date' }),
+  createdAt: timestamp('createdAt', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: timestamp('updatedAt', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
 // relations() 不会创建数据表，只是用于类型推断
 
 export const userTagRelations = relations(userTags, (ctx) => ({
@@ -132,5 +165,12 @@ export const userBookmarkToTagRelations = relations(userBookmarkToTag, (ctx) => 
   tag: ctx.one(userTags, {
     fields: [userBookmarkToTag.tId],
     references: [userTags.id],
+  }),
+}))
+
+export const userAiBatchJobRelations = relations(userAiBatchJobs, (ctx) => ({
+  user: ctx.one(users, {
+    fields: [userAiBatchJobs.userId],
+    references: [users.id],
   }),
 }))

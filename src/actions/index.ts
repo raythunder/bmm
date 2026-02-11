@@ -2,12 +2,17 @@
 
 import {
   CredentialsController,
+  UserAiBatchJobController,
   PublicBookmarkController,
   PublicTagController,
   UserAiModelController,
   UserBookmarkController,
   UserTagController,
 } from '@/controllers'
+import {
+  pauseUserAiBatchJobInputSchema,
+  startUserAiBatchJobInputSchema,
+} from '@/lib/ai/user-ai-batch-types'
 import {
   aiAnalyzeRelatedTagsInput,
   aiAnalyzeWebsiteInput,
@@ -48,6 +53,13 @@ export const actQueryUserBookmark = make(UserBookmarkController.query)
 export const actDeleteUserBookmark = make(UserBookmarkController.delete)
 export const actUpdateUserBookmark = make(UserBookmarkController.update)
 export const actSaveUserAiModelSettings = make(UserAiModelController.save)
+export const actStartUserAiBatchUpdate = make(UserAiBatchJobController.start, {
+  schema: startUserAiBatchJobInputSchema,
+})
+export const actGetUserAiBatchUpdateJob = make(UserAiBatchJobController.getLatest)
+export const actPauseUserAiBatchUpdate = make(UserAiBatchJobController.pause, {
+  schema: pauseUserAiBatchJobInputSchema,
+})
 
 /// 解析网站、标签
 export const actExtractHtmlInfo = make(extractHtmlInfoInput)

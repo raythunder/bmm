@@ -88,6 +88,35 @@ export const userBookmarkToTag = sqliteTable(
   (table) => [primaryKey({ columns: [table.bId, table.tId] })]
 )
 
+const userAiBatchJobStatuses = ['running', 'pausing', 'paused', 'completed', 'failed'] as const
+
+/**
+ * 用户 AI 批量更新任务
+ */
+export const userAiBatchJobs = sqliteTable('userAiBatchJobs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  status: text('status', { enum: userAiBatchJobStatuses }).notNull().default('running'),
+  targetTagName: text('targetTagName').notNull(),
+  concurrency: integer('concurrency').notNull().default(3),
+  totalCount: integer('totalCount').notNull().default(0),
+  processedCount: integer('processedCount').notNull().default(0),
+  successCount: integer('successCount').notNull().default(0),
+  failedCount: integer('failedCount').notNull().default(0),
+  pauseRequested: integer('pauseRequested', { mode: 'boolean' }).notNull().default(false),
+  lastError: text('lastError'),
+  startedAt: integer('startedAt', { mode: 'timestamp' }),
+  finishedAt: integer('finishedAt', { mode: 'timestamp' }),
+  createdAt: integer('createdAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
 // relations() 不会创建数据表，只是用于类型推断
 
 export const userTagRelations = relations(userTags, (ctx) => ({
@@ -121,5 +150,12 @@ export const userBookmarkToTagRelations = relations(userBookmarkToTag, (ctx) => 
   tag: ctx.one(userTags, {
     fields: [userBookmarkToTag.tId],
     references: [userTags.id],
+  }),
+}))
+
+export const userAiBatchJobRelations = relations(userAiBatchJobs, (ctx) => ({
+  user: ctx.one(users, {
+    fields: [userAiBatchJobs.userId],
+    references: [users.id],
   }),
 }))
