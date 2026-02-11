@@ -3,7 +3,7 @@
 import { actGetAllPublicTags, actTotalPublicBookmarks } from '@/actions'
 import { runAction } from '@/utils/client'
 import { useSetState } from 'ahooks'
-import { createContext, PropsWithChildren, useContext, useMemo } from 'react'
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo } from 'react'
 
 interface AdminContextType {
   /** 所有的 publicTags  */
@@ -31,6 +31,13 @@ export function AdminProvider(props: PropsWithChildren<ContextValuePart>) {
     tags: props.tags,
     totalBookmarks: props.totalBookmarks,
   })
+
+  useEffect(() => {
+    setState({
+      tags: props.tags,
+      totalBookmarks: props.totalBookmarks,
+    })
+  }, [props.tags, props.totalBookmarks, setState])
 
   const ctxValue = useMemo<AdminContextType>(() => {
     return {

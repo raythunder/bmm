@@ -9,7 +9,7 @@ import { useUserContext } from '../../ctx'
 
 export default function ClientPage() {
   const slug = useSlug()
-  const { tags, totalBookmarks, updateTotalBookmarks } = useUserContext()
+  const { tags, totalBookmarks, updateTotalBookmarks, updateTags } = useUserContext()
   const [bookmark, setBookmark] = useState<SelectBookmark | null>(null)
 
   useEffect(() => {
@@ -22,7 +22,9 @@ export default function ClientPage() {
   const props: BookmarkSlugPageProps = {
     tags,
     bookmark,
-    afterSave: () => updateTotalBookmarks(totalBookmarks + 1),
+    afterSave: async () => {
+      await Promise.all([updateTotalBookmarks(totalBookmarks + 1), updateTags()])
+    },
   }
 
   return <BookmarkSlugPage {...props} />

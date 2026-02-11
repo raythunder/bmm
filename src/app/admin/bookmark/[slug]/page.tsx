@@ -9,7 +9,7 @@ import { useAdminContext } from '../../ctx'
 
 export default function BookmarkSlug() {
   const slug = useSlug()
-  const { tags, totalBookmarks, updateTotalBookmarks } = useAdminContext()
+  const { tags, totalBookmarks, updateTotalBookmarks, updateTags } = useAdminContext()
   const [bookmark, setBookmark] = useState<SelectBookmark | null>(null)
 
   useEffect(() => {
@@ -22,7 +22,9 @@ export default function BookmarkSlug() {
   const props: BookmarkSlugPageProps = {
     tags,
     bookmark,
-    afterSave: () => updateTotalBookmarks(totalBookmarks + 1),
+    afterSave: async () => {
+      await Promise.all([updateTotalBookmarks(totalBookmarks + 1), updateTags()])
+    },
   }
 
   return <BookmarkSlugPage {...props} />

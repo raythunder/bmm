@@ -3,7 +3,7 @@
 import { actGetAllUserTags, actTotalUserBookmarks } from '@/actions'
 import { runAction } from '@/utils/client'
 import { useSetState } from 'ahooks'
-import { createContext, PropsWithChildren, useContext, useMemo } from 'react'
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo } from 'react'
 
 type ContextValuePart = Pick<UserContextType, 'tags' | 'totalBookmarks'>
 interface UserContextType {
@@ -32,6 +32,13 @@ export function UserContextProvider(props: Props) {
     tags: props.tags,
     totalBookmarks: props.totalBookmarks,
   })
+
+  useEffect(() => {
+    setState({
+      tags: props.tags,
+      totalBookmarks: props.totalBookmarks,
+    })
+  }, [props.tags, props.totalBookmarks, setState])
 
   const value = useMemo<UserContextType>(() => {
     return {
