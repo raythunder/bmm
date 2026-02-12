@@ -2,6 +2,7 @@ import UserBookmarkController from '@/controllers/UserBookmark.controller'
 import UserTagController from '@/controllers/UserTag.controller'
 import { db, schema } from '@/db'
 import { runConcurrentBatch } from '@/lib/ai/run-concurrent-batch'
+import { normalizeUserAiBatchJobErrorMessage } from '@/lib/ai/user-ai-batch-errors'
 import { getUnmatchedTagNames, mapTagNamesToTagIds, sanitizeAiTagNames } from '@/utils'
 import { and, eq, sql } from 'drizzle-orm'
 import { analyzeWebsite } from '.'
@@ -41,7 +42,7 @@ async function markFatal(jobId: number, message: string) {
     .update(table)
     .set({
       status: 'failed',
-      lastError: message,
+      lastError: normalizeUserAiBatchJobErrorMessage(message),
       finishedAt: new Date(),
       updatedAt: new Date(),
     })
@@ -75,7 +76,7 @@ async function markTaskProgress(jobId: number, input: { ok: boolean; message?: s
     .set({
       processedCount: sql`${table.processedCount} + 1`,
       failedCount: sql`${table.failedCount} + 1`,
-      lastError: input.message || '未知错误',
+      lastError: normalizeUserAiBatchJobErrorMessage(input.message || '未知错误'),
       updatedAt: new Date(),
     })
     .where(eq(table.id, jobId))
@@ -206,7 +207,11 @@ export function startUserAiBatchRunner(options: StartUserAiBatchRunnerOptions) {
 
   const runner = runUserAiBatchRunner(options)
     .catch(async (error) => {
-      await markFatal(options.jobId, getErrorMessage(error))
+      try {
+        await markFatal(options.jobId, getErrorMessage(error))
+      } catch (fatalError) {
+        console.error('更新批量任务失败状态时出错', fatalError)
+      }
     })
     .finally(() => {
       activeJobs.delete(options.jobId)
