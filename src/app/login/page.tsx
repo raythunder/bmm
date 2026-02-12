@@ -1,6 +1,11 @@
 'use client'
 
-import { actCheckGithubOAuthConfig, actRegisterUser, actVerifyUser } from '@/actions'
+import {
+  actCheckGithubOAuthConfig,
+  actGetSystemSettings,
+  actRegisterUser,
+  actVerifyUser,
+} from '@/actions'
 import { ReButton, ReInput } from '@/components'
 import { z, zodSchemas } from '@/lib/zod'
 import { runAction } from '@/utils/client'
@@ -42,6 +47,7 @@ export default function Page() {
     isRedirecting: false,
     showBg: true,
     isRegisterMode: false,
+    allowRegister: false,
     loginRegisterLoading: false,
     authError: null as null | { title: string; desc: string },
   })
@@ -53,6 +59,17 @@ export default function Page() {
     const value = globalThis.localStorage?.getItem('login-show-background')
     if (value === null) return
     setState({ showBg: value === 'true' })
+  })
+
+  useMount(() => {
+    void (async () => {
+      const res = await runAction(actGetSystemSettings(), { errToast: { hidden: true } })
+      const allowRegister = res.ok ? res.data.allowRegister : true
+      setState((oldState) => ({
+        allowRegister,
+        isRegisterMode: allowRegister ? oldState.isRegisterMode : false,
+      }))
+    })()
   })
 
   useMount(() => {
@@ -93,6 +110,7 @@ export default function Page() {
   }
 
   function toggleRegisterMode() {
+    if (!state.allowRegister) return
     formRef.current?.reset()
     setState({ isRegisterMode: !state.isRegisterMode, authError: null })
     setValidationErrors(undefined)
@@ -124,6 +142,13 @@ export default function Page() {
     setState({ loginRegisterLoading: true })
     // 注册账号
     if (state.isRegisterMode) {
+      if (!state.allowRegister) {
+        setState({
+          loginRegisterLoading: false,
+          authError: { title: '注册已关闭', desc: '当前站点暂未开放注册，请联系管理员。' },
+        })
+        return
+      }
       const result = await runAction(actRegisterUser(values), { errToast: { hidden: true } })
       setState({ loginRegisterLoading: false })
       if (!result.ok) {
@@ -180,19 +205,22 @@ export default function Page() {
                 {state.isRegisterMode && (
                   <ReInput label="确认密码" name="confirmPassword" type="password" isRequired />
                 )}
-                <div className="mt-4 text-xs">
-                  <button
-                    className={cn(
-                      'text-primary flex-items-center space-x-1 transition-all hover:opacity-80',
-                      state.isRegisterMode && 'text-secondary'
-                    )}
-                    onClick={toggleRegisterMode}
-                  >
-                    {state.isRegisterMode && <span className={IconNames.ARROW_LEFT} />}
-                    <span>{state.isRegisterMode ? '返回登录' : '还没账号？去注册'}</span>
-                    {!state.isRegisterMode && <span className={IconNames.ARROW_RIGHT} />}
-                  </button>
-                </div>
+                {state.allowRegister && (
+                  <div className="mt-4 text-xs">
+                    <button
+                      type="button"
+                      className={cn(
+                        'text-primary flex-items-center space-x-1 transition-all hover:opacity-80',
+                        state.isRegisterMode && 'text-secondary'
+                      )}
+                      onClick={toggleRegisterMode}
+                    >
+                      {state.isRegisterMode && <span className={IconNames.ARROW_LEFT} />}
+                      <span>{state.isRegisterMode ? '返回登录' : '还没账号？去注册'}</span>
+                      {!state.isRegisterMode && <span className={IconNames.ARROW_RIGHT} />}
+                    </button>
+                  </div>
+                )}
                 <ReButton
                   type="submit"
                   fullWidth

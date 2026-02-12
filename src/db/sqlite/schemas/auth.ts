@@ -16,6 +16,14 @@ export const users = sqliteTable('user', {
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 })
 
+export const appSettings = sqliteTable('appSettings', {
+  id: integer('id').primaryKey(),
+  allowRegister: integer('allowRegister', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
 export const accounts = sqliteTable(
   'account',
   {

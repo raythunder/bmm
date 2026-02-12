@@ -69,7 +69,7 @@ export function NavUser() {
                 href={PageRoutes.User.SETTINGS}
                 startContent={<span className={cn(IconNames.Tabler.SETTINGS, 'text-base')} />}
               >
-                模型设置
+                系统设置
               </ListboxItem>
             </ListboxSection>
             <ListboxSection showDivider hidden={!user.isAdmin} className="max-xs:hidden">

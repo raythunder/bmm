@@ -1,6 +1,6 @@
 'use client'
 
-import { actSaveUserAiModelSettings } from '@/actions'
+import { actSaveSystemSettings, actSaveUserAiModelSettings } from '@/actions'
 import MyModal from '@/components/MyModal'
 import { ReButton, ReInput, ReTextarea } from '@/components'
 import {
@@ -9,13 +9,22 @@ import {
   type AiModelConfig,
   type AiModelSettings,
 } from '@/lib/ai/model-settings'
+import {
+  normalizeSystemSettings,
+  systemSettingsSchema,
+  type SystemSettings,
+} from '@/lib/system-settings'
 import { runAction } from '@/utils/client'
-import { cn, Divider, Select, SelectItem, addToast } from '@heroui/react'
+import { cn, Divider, Select, SelectItem, Switch, Tab, Tabs, addToast } from '@heroui/react'
 import { useMemo, useState } from 'react'
 
 interface Props {
   initialSettings: AiModelSettings
+  initialSystemSettings: SystemSettings
+  isAdmin: boolean
 }
+
+type SettingsTabKey = 'ai-models' | 'system'
 
 function createModelsDraftMap(configs: AiModelConfig[]) {
   return configs.reduce<Record<string, string>>((acc, config) => {
@@ -83,24 +92,33 @@ const selectClassNames = {
 }
 
 export default function ClientPage(props: Props) {
-  const initialSettings = useMemo(
+  const initialAiModelSettings = useMemo(
     () => normalizeAiModelSettings(props.initialSettings),
     [props.initialSettings]
   )
+  const initialSystemSettings = useMemo(
+    () => normalizeSystemSettings(props.initialSystemSettings),
+    [props.initialSystemSettings]
+  )
+
   const [state, setState] = useState(() => ({
-    settings: initialSettings,
-    modelDraftByConfigId: createModelsDraftMap(initialSettings.configs),
-    selectedConfigId: initialSettings.activeConfigId || initialSettings.configs[0]?.id || null,
-    saving: false,
+    activeTab: 'ai-models' as SettingsTabKey,
+    aiModelSettings: initialAiModelSettings,
+    systemSettings: initialSystemSettings,
+    modelDraftByConfigId: createModelsDraftMap(initialAiModelSettings.configs),
+    selectedConfigId:
+      initialAiModelSettings.activeConfigId || initialAiModelSettings.configs[0]?.id || null,
+    savingAiModel: false,
+    savingSystem: false,
     deletingConfig: null as AiModelConfig | null,
   }))
 
   const selectedConfig =
-    state.settings.configs.find((config) => config.id === state.selectedConfigId) || null
+    state.aiModelSettings.configs.find((config) => config.id === state.selectedConfigId) || null
 
-  function updateSettings(updater: (settings: AiModelSettings) => AiModelSettings) {
+  function updateAiModelSettings(updater: (settings: AiModelSettings) => AiModelSettings) {
     setState((oldState) => {
-      const nextSettings = updater(oldState.settings)
+      const nextSettings = updater(oldState.aiModelSettings)
       const hasSelected = nextSettings.configs.some(
         (config) => config.id === oldState.selectedConfigId
       )
@@ -109,7 +127,7 @@ export default function ClientPage(props: Props) {
         : nextSettings.configs[0]?.id || null
       return {
         ...oldState,
-        settings: nextSettings,
+        aiModelSettings: nextSettings,
         selectedConfigId,
       }
     })
@@ -117,7 +135,7 @@ export default function ClientPage(props: Props) {
 
   function addConfig() {
     setState((oldState) => {
-      const configCount = oldState.settings.configs.length
+      const configCount = oldState.aiModelSettings.configs.length
       const nextConfig: AiModelConfig = {
         id: createConfigId(),
         name: `配置 ${configCount + 1}`,
@@ -126,13 +144,13 @@ export default function ClientPage(props: Props) {
         models: [],
         activeModel: '',
       }
-      const configs = [...oldState.settings.configs, nextConfig]
+      const configs = [...oldState.aiModelSettings.configs, nextConfig]
       return {
         ...oldState,
-        settings: {
-          ...oldState.settings,
+        aiModelSettings: {
+          ...oldState.aiModelSettings,
           configs,
-          activeConfigId: oldState.settings.activeConfigId || nextConfig.id,
+          activeConfigId: oldState.aiModelSettings.activeConfigId || nextConfig.id,
         },
         modelDraftByConfigId: {
           ...oldState.modelDraftByConfigId,
@@ -144,7 +162,7 @@ export default function ClientPage(props: Props) {
   }
 
   function updateConfig(configId: string, patch: Partial<AiModelConfig>) {
-    updateSettings((settings) => ({
+    updateAiModelSettings((settings) => ({
       ...settings,
       configs: settings.configs.map((config) => {
         if (config.id !== configId) return config
@@ -167,8 +185,8 @@ export default function ClientPage(props: Props) {
     setState((oldState) => {
       const draft = oldState.modelDraftByConfigId[configId] || ''
       const settings = {
-        ...oldState.settings,
-        configs: oldState.settings.configs.map((config) => {
+        ...oldState.aiModelSettings,
+        configs: oldState.aiModelSettings.configs.map((config) => {
           if (config.id !== configId) return config
           return applyDraftToConfig(config, draft)
         }),
@@ -176,7 +194,7 @@ export default function ClientPage(props: Props) {
       const nextConfig = settings.configs.find((config) => config.id === configId)
       return {
         ...oldState,
-        settings,
+        aiModelSettings: settings,
         modelDraftByConfigId: {
           ...oldState.modelDraftByConfigId,
           [configId]: nextConfig ? nextConfig.models.join('\n') : draft,
@@ -187,17 +205,17 @@ export default function ClientPage(props: Props) {
 
   function removeConfig(configId: string) {
     setState((oldState) => {
-      const configs = oldState.settings.configs.filter((config) => config.id !== configId)
+      const configs = oldState.aiModelSettings.configs.filter((config) => config.id !== configId)
       const activeConfigId = configs.some(
-        (config) => config.id === oldState.settings.activeConfigId
+        (config) => config.id === oldState.aiModelSettings.activeConfigId
       )
-        ? oldState.settings.activeConfigId
+        ? oldState.aiModelSettings.activeConfigId
         : configs[0]?.id || null
       const { [configId]: _dropped, ...modelDraftByConfigId } = oldState.modelDraftByConfigId
       return {
         ...oldState,
-        settings: {
-          ...oldState.settings,
+        aiModelSettings: {
+          ...oldState.aiModelSettings,
           configs,
           activeConfigId,
         },
@@ -220,7 +238,7 @@ export default function ClientPage(props: Props) {
   }
 
   function setActiveConfig(configId: string) {
-    updateSettings((settings) => ({
+    updateAiModelSettings((settings) => ({
       ...settings,
       activeConfigId: configId,
       configs: settings.configs.map((config) => {
@@ -235,9 +253,9 @@ export default function ClientPage(props: Props) {
     }))
   }
 
-  async function saveAll() {
+  async function saveAiModelSettings() {
     const settingsWithDrafts = applyModelDraftsToSettings(
-      state.settings,
+      state.aiModelSettings,
       state.modelDraftByConfigId
     )
     const parsed = aiModelSettingsSchema.safeParse(settingsWithDrafts)
@@ -250,7 +268,7 @@ export default function ClientPage(props: Props) {
       return
     }
 
-    setState((oldState) => ({ ...oldState, saving: true }))
+    setState((oldState) => ({ ...oldState, savingAiModel: true }))
     const res = await runAction(actSaveUserAiModelSettings(parsed.data), {
       okMsg: '模型配置已保存',
     })
@@ -258,214 +276,307 @@ export default function ClientPage(props: Props) {
       const saved = normalizeAiModelSettings(res.data)
       setState((oldState) => ({
         ...oldState,
-        settings: saved,
+        aiModelSettings: saved,
         modelDraftByConfigId: createModelsDraftMap(saved.configs),
         selectedConfigId: saved.configs.some((config) => config.id === oldState.selectedConfigId)
           ? oldState.selectedConfigId
           : saved.activeConfigId || saved.configs[0]?.id || null,
       }))
     }
-    setState((oldState) => ({ ...oldState, saving: false }))
+    setState((oldState) => ({ ...oldState, savingAiModel: false }))
+  }
+
+  async function saveSystemSettings() {
+    if (!props.isAdmin) return
+    const parsed = systemSettingsSchema.safeParse(state.systemSettings)
+    if (!parsed.success) {
+      addToast({
+        color: 'danger',
+        title: '参数错误',
+        description: getFirstIssue(parsed.error),
+      })
+      return
+    }
+
+    setState((oldState) => ({ ...oldState, savingSystem: true }))
+    const res = await runAction(actSaveSystemSettings(parsed.data), {
+      okMsg: '系统配置已保存',
+    })
+    if (res.ok) {
+      setState((oldState) => ({
+        ...oldState,
+        systemSettings: normalizeSystemSettings(res.data),
+      }))
+    }
+    setState((oldState) => ({ ...oldState, savingSystem: false }))
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <div className="mb-6">
-        <h1 className="text-foreground-700 text-3xl font-semibold">模型设置</h1>
+        <h1 className="text-foreground-700 text-3xl font-semibold">系统设置</h1>
         <p className="text-foreground-500 mt-2 text-sm">
-          管理 OpenAI 兼容模型配置。可创建多个配置，并指定一个激活配置和对应模型。
+          管理 AI 模型与站点级配置，后续可在此扩展更多系统能力。
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <aside className="border-foreground-200 rounded-2xl border p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-foreground-600 text-sm font-medium">配置列表</h2>
-            <ReButton size="sm" variant="flat" onClick={addConfig}>
-              新建配置
-            </ReButton>
-          </div>
+      <Tabs
+        selectedKey={state.activeTab}
+        onSelectionChange={(key) =>
+          setState((oldState) => ({ ...oldState, activeTab: String(key) as SettingsTabKey }))
+        }
+      >
+        <Tab key="ai-models" title="AI 模型设置">
+          <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
+            <aside className="border-foreground-200 rounded-2xl border p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-foreground-600 text-sm font-medium">配置列表</h2>
+                <ReButton size="sm" variant="flat" onClick={addConfig}>
+                  新建配置
+                </ReButton>
+              </div>
 
-          <div className="space-y-2">
-            {state.settings.configs.map((config) => {
-              const selected = config.id === state.selectedConfigId
-              const active = config.id === state.settings.activeConfigId
-              return (
-                <div
-                  key={config.id}
-                  className={cn(
-                    'border-foreground-200 rounded-xl border p-3 transition',
-                    selected && 'border-primary bg-primary-50/40 dark:bg-primary-400/10'
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() =>
-                      setState((oldState) => ({ ...oldState, selectedConfigId: config.id }))
-                    }
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-foreground-700 truncate text-sm font-medium">
-                        {config.name || '未命名配置'}
-                      </span>
-                      {active && (
-                        <span className="bg-success-100 text-success-700 rounded px-2 py-0.5 text-xs">
-                          激活中
-                        </span>
+              <div className="space-y-2">
+                {state.aiModelSettings.configs.map((config) => {
+                  const selected = config.id === state.selectedConfigId
+                  const active = config.id === state.aiModelSettings.activeConfigId
+                  return (
+                    <div
+                      key={config.id}
+                      className={cn(
+                        'border-foreground-200 rounded-xl border p-3 transition',
+                        selected && 'border-primary bg-primary-50/40 dark:bg-primary-400/10'
                       )}
-                    </div>
-                    <p className="text-foreground-400 mt-1 truncate text-xs">
-                      {config.baseUrl || '未设置 Base URL'}
-                    </p>
-                  </button>
-                  <div className="mt-3 flex gap-2">
-                    {!active && (
-                      <ReButton size="sm" variant="flat" onClick={() => setActiveConfig(config.id)}>
-                        设为激活
-                      </ReButton>
-                    )}
-                    <ReButton
-                      size="sm"
-                      variant="light"
-                      color="danger"
-                      onClick={() => openDeleteConfigConfirm(config)}
                     >
-                      删除
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={() =>
+                          setState((oldState) => ({ ...oldState, selectedConfigId: config.id }))
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-foreground-700 truncate text-sm font-medium">
+                            {config.name || '未命名配置'}
+                          </span>
+                          {active && (
+                            <span className="bg-success-100 text-success-700 rounded px-2 py-0.5 text-xs">
+                              激活中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-foreground-400 mt-1 truncate text-xs">
+                          {config.baseUrl || '未设置 Base URL'}
+                        </p>
+                      </button>
+                      <div className="mt-3 flex gap-2">
+                        {!active && (
+                          <ReButton
+                            size="sm"
+                            variant="flat"
+                            onClick={() => setActiveConfig(config.id)}
+                          >
+                            设为激活
+                          </ReButton>
+                        )}
+                        <ReButton
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          onClick={() => openDeleteConfigConfirm(config)}
+                        >
+                          删除
+                        </ReButton>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {!state.aiModelSettings.configs.length && (
+                  <div className="text-foreground-400 border-foreground-200 rounded-xl border border-dashed p-4 text-sm">
+                    暂无配置，点击“新建配置”开始设置。
+                  </div>
+                )}
+              </div>
+
+              <Divider className="my-4" />
+
+              <Select
+                aria-label="当前激活配置"
+                label="当前激活配置"
+                placeholder="请选择配置"
+                selectedKeys={
+                  state.aiModelSettings.activeConfigId ? [state.aiModelSettings.activeConfigId] : []
+                }
+                onSelectionChange={(keys) => {
+                  const configId = String(keys.currentKey || '')
+                  if (configId) setActiveConfig(configId)
+                }}
+              >
+                {state.aiModelSettings.configs.map((config) => (
+                  <SelectItem key={config.id}>{config.name || '未命名配置'}</SelectItem>
+                ))}
+              </Select>
+            </aside>
+
+            <section className="border-foreground-200 bg-content1/40 rounded-2xl border p-6 md:p-8">
+              {!selectedConfig && (
+                <div className="text-foreground-400 py-10 text-center text-sm">
+                  请选择或新建一个配置
+                </div>
+              )}
+
+              {selectedConfig && (
+                <div>
+                  <div className="border-divider mb-6 flex items-center justify-between gap-4 border-b pb-4">
+                    <div>
+                      <h2 className="text-foreground-700 text-2xl font-semibold">编辑配置</h2>
+                      <p className="text-foreground-400 mt-1 text-sm">
+                        调整当前配置的连接信息和模型列表
+                      </p>
+                    </div>
+                    <ReButton
+                      color="primary"
+                      className="h-12 w-32"
+                      isLoading={state.savingAiModel}
+                      onClick={saveAiModelSettings}
+                    >
+                      保存
                     </ReButton>
                   </div>
+
+                  <div className="grid gap-6">
+                    <div className="space-y-2">
+                      <p className="text-foreground-500 text-sm font-medium">配置名称</p>
+                      <ReInput
+                        aria-label="配置名称"
+                        className="w-full"
+                        classNames={inputClassNames}
+                        value={selectedConfig.name}
+                        onValueChange={(value) => updateConfig(selectedConfig.id, { name: value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-foreground-500 text-sm font-medium">OPENAI_BASE_URL</p>
+                      <ReInput
+                        aria-label="OPENAI_BASE_URL"
+                        className="w-full"
+                        classNames={inputClassNames}
+                        value={selectedConfig.baseUrl}
+                        onValueChange={(value) =>
+                          updateConfig(selectedConfig.id, { baseUrl: value })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-foreground-500 text-sm font-medium">OPENAI_API_KEY</p>
+                      <ReInput
+                        aria-label="OPENAI_API_KEY"
+                        className="w-full"
+                        classNames={inputClassNames}
+                        type="password"
+                        value={selectedConfig.apiKey}
+                        onValueChange={(value) =>
+                          updateConfig(selectedConfig.id, { apiKey: value })
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-foreground-500 text-sm font-medium">
+                        模型列表（每行一个）
+                      </p>
+                      <ReTextarea
+                        aria-label="模型列表（每行一个）"
+                        className="w-full"
+                        classNames={textareaClassNames}
+                        minRows={6}
+                        value={
+                          state.modelDraftByConfigId[selectedConfig.id] ??
+                          selectedConfig.models.join('\n')
+                        }
+                        onValueChange={(value) => updateModelDraft(selectedConfig.id, value)}
+                        onBlur={() => commitConfigModelsDraft(selectedConfig.id)}
+                      />
+                    </div>
+
+                    {state.aiModelSettings.activeConfigId === selectedConfig.id && (
+                      <div className="space-y-2">
+                        <p className="text-foreground-500 text-sm font-medium">当前激活模型</p>
+                        <Select
+                          aria-label="当前激活模型"
+                          className="w-full"
+                          classNames={selectClassNames}
+                          placeholder="请选择模型"
+                          selectedKeys={
+                            selectedConfig.activeModel ? [selectedConfig.activeModel] : []
+                          }
+                          onSelectionChange={(keys) =>
+                            updateConfig(selectedConfig.id, {
+                              activeModel: String(keys.currentKey || ''),
+                            })
+                          }
+                        >
+                          {selectedConfig.models.map((model) => (
+                            <SelectItem key={model}>{model}</SelectItem>
+                          ))}
+                        </Select>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )
-            })}
-
-            {!state.settings.configs.length && (
-              <div className="text-foreground-400 border-foreground-200 rounded-xl border border-dashed p-4 text-sm">
-                暂无配置，点击“新建配置”开始设置。
-              </div>
-            )}
+              )}
+            </section>
           </div>
+        </Tab>
 
-          <Divider className="my-4" />
-
-          <Select
-            aria-label="当前激活配置"
-            label="当前激活配置"
-            placeholder="请选择配置"
-            selectedKeys={state.settings.activeConfigId ? [state.settings.activeConfigId] : []}
-            onSelectionChange={(keys) => {
-              const configId = String(keys.currentKey || '')
-              if (configId) setActiveConfig(configId)
-            }}
-          >
-            {state.settings.configs.map((config) => (
-              <SelectItem key={config.id}>{config.name || '未命名配置'}</SelectItem>
-            ))}
-          </Select>
-        </aside>
-
-        <section className="border-foreground-200 bg-content1/40 rounded-2xl border p-6 md:p-8">
-          {!selectedConfig && (
-            <div className="text-foreground-400 py-10 text-center text-sm">
-              请选择或新建一个配置
-            </div>
-          )}
-
-          {selectedConfig && (
-            <div>
+        {props.isAdmin && (
+          <Tab key="system" title="系统配置">
+            <section className="border-foreground-200 bg-content1/40 mt-6 rounded-2xl border p-6 md:p-8">
               <div className="border-divider mb-6 flex items-center justify-between gap-4 border-b pb-4">
                 <div>
-                  <h2 className="text-foreground-700 text-2xl font-semibold">编辑配置</h2>
+                  <h2 className="text-foreground-700 text-2xl font-semibold">注册设置</h2>
                   <p className="text-foreground-400 mt-1 text-sm">
-                    调整当前配置的连接信息和模型列表
+                    控制登录页是否展示注册入口，并决定是否允许账号注册。
                   </p>
                 </div>
                 <ReButton
                   color="primary"
                   className="h-12 w-32"
-                  isLoading={state.saving}
-                  onClick={saveAll}
+                  isLoading={state.savingSystem}
+                  onClick={saveSystemSettings}
                 >
                   保存
                 </ReButton>
               </div>
 
-              <div className="grid gap-6">
-                <div className="space-y-2">
-                  <p className="text-foreground-500 text-sm font-medium">配置名称</p>
-                  <ReInput
-                    aria-label="配置名称"
-                    className="w-full"
-                    classNames={inputClassNames}
-                    value={selectedConfig.name}
-                    onValueChange={(value) => updateConfig(selectedConfig.id, { name: value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-foreground-500 text-sm font-medium">OPENAI_BASE_URL</p>
-                  <ReInput
-                    aria-label="OPENAI_BASE_URL"
-                    className="w-full"
-                    classNames={inputClassNames}
-                    value={selectedConfig.baseUrl}
-                    onValueChange={(value) => updateConfig(selectedConfig.id, { baseUrl: value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-foreground-500 text-sm font-medium">OPENAI_API_KEY</p>
-                  <ReInput
-                    aria-label="OPENAI_API_KEY"
-                    className="w-full"
-                    classNames={inputClassNames}
-                    type="password"
-                    value={selectedConfig.apiKey}
-                    onValueChange={(value) => updateConfig(selectedConfig.id, { apiKey: value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-foreground-500 text-sm font-medium">模型列表（每行一个）</p>
-                  <ReTextarea
-                    aria-label="模型列表（每行一个）"
-                    className="w-full"
-                    classNames={textareaClassNames}
-                    minRows={6}
-                    value={
-                      state.modelDraftByConfigId[selectedConfig.id] ??
-                      selectedConfig.models.join('\n')
-                    }
-                    onValueChange={(value) => updateModelDraft(selectedConfig.id, value)}
-                    onBlur={() => commitConfigModelsDraft(selectedConfig.id)}
-                  />
-                </div>
-
-                {state.settings.activeConfigId === selectedConfig.id && (
-                  <div className="space-y-2">
-                    <p className="text-foreground-500 text-sm font-medium">当前激活模型</p>
-                    <Select
-                      aria-label="当前激活模型"
-                      className="w-full"
-                      classNames={selectClassNames}
-                      placeholder="请选择模型"
-                      selectedKeys={selectedConfig.activeModel ? [selectedConfig.activeModel] : []}
-                      onSelectionChange={(keys) =>
-                        updateConfig(selectedConfig.id, {
-                          activeModel: String(keys.currentKey || ''),
-                        })
-                      }
-                    >
-                      {selectedConfig.models.map((model) => (
-                        <SelectItem key={model}>{model}</SelectItem>
-                      ))}
-                    </Select>
-                  </div>
-                )}
+              <div className="space-y-3">
+                <Switch
+                  aria-label="是否开放注册"
+                  isSelected={state.systemSettings.allowRegister}
+                  onValueChange={(allowRegister) =>
+                    setState((oldState) => ({
+                      ...oldState,
+                      systemSettings: {
+                        ...oldState.systemSettings,
+                        allowRegister,
+                      },
+                    }))
+                  }
+                >
+                  开放注册
+                </Switch>
+                <p className="text-foreground-500 text-sm">
+                  关闭后，登录页将隐藏“去注册”入口，服务端也会拒绝新的注册请求。
+                </p>
               </div>
-            </div>
-          )}
-        </section>
-      </div>
+            </section>
+          </Tab>
+        )}
+      </Tabs>
+
       <MyModal
         isOpen={!!state.deletingConfig}
         onClose={() => setState((oldState) => ({ ...oldState, deletingConfig: null }))}

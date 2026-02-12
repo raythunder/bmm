@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { spawn } from 'node:child_process'
 import 'zx/globals'
-import { declareLocalType, exitWithDbClose, loadEnv, testDbConnect } from './utils.mjs'
+import { dbExecute, declareLocalType, exitWithDbClose, loadEnv, testDbConnect } from './utils.mjs'
 
 const dbFolderAlias = {
   postgresql: 'postgres',
@@ -28,6 +28,33 @@ async function hasMigrationFiles() {
   } catch {
     return false
   }
+}
+
+async function hasTable(tableName) {
+  if (process.env.DB_DRIVER === 'postgresql') {
+    const res = await dbExecute(`
+      SELECT 1
+      FROM pg_catalog.pg_tables
+      WHERE schemaname = 'public' AND tablename = '${tableName}'
+      LIMIT 1;
+    `)
+    return res.length > 0
+  }
+
+  const res = await dbExecute(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name = '${tableName}'
+    LIMIT 1;
+  `)
+  return res.rows.length > 0
+}
+
+async function shouldFallbackToPushForLegacyDb() {
+  const hasMigrationState = await hasTable('__drizzle_migrations')
+  const hasAppTables = await hasTable('publicBookmarks')
+  return !hasMigrationState && hasAppTables
 }
 
 async function runNonInteractivePush() {
@@ -92,13 +119,13 @@ async function runNonInteractivePush() {
       clearTimeout(idleTimer)
       if (stdout.includes('All changes were aborted')) {
         return reject(
-          new Error('数据库变更被安全策略中止（未执行破坏性变更）。请先手动处理对应数据后重启应用。')
+          new Error(
+            '数据库变更被安全策略中止（未执行破坏性变更）。请先手动处理对应数据后重启应用。'
+          )
         )
       }
       if (code !== 0) {
-        return reject(
-          new Error(`drizzle-kit push 执行失败，退出码: ${code}\n${stderr || stdout}`)
-        )
+        return reject(new Error(`drizzle-kit push 执行失败，退出码: ${code}\n${stderr || stdout}`))
       }
       return resolve(undefined)
     })
@@ -117,6 +144,15 @@ async function main() {
   })
 
   if (await hasMigrationFiles()) {
+    if (await shouldFallbackToPushForLegacyDb()) {
+      echo(
+        chalk.yellow(
+          '检测到旧版数据库（已存在业务表但无迁移历史），为兼容升级流程，回退执行 drizzle-kit push'
+        )
+      )
+      await runNonInteractivePush()
+      return exitWithDbClose()
+    }
     echo(chalk.cyan('检测到迁移文件，执行 drizzle-kit migrate'))
     await $`./node_modules/.bin/drizzle-kit migrate`.pipe(process.stdout)
   } else {

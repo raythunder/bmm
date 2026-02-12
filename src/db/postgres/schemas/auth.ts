@@ -18,6 +18,14 @@ export const users = pgTable('user', {
   createdAt: timestamp('createdAt', { mode: 'date' }).$defaultFn(() => new Date()),
 })
 
+export const appSettings = pgTable('appSettings', {
+  id: integer('id').primaryKey().default(1),
+  allowRegister: boolean('allowRegister').notNull().default(true),
+  updatedAt: timestamp('updatedAt', { mode: 'date' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+})
+
 export const accounts = pgTable(
   'account',
   {

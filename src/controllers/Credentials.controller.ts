@@ -2,6 +2,7 @@ import { db, schema } from '@/db'
 import { z, zodSchemas } from '@/lib/zod'
 import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
+import SystemSettingsController from './SystemSettings.controller'
 import UserController from './User.controller'
 
 // 使用 pbkdf2 算法生成哈希，1000 轮迭代，32 字节长度的密钥
@@ -29,6 +30,10 @@ function verifyPassword(password: string, hash: string, salt: string) {
 const CredentialsController = {
   // 注册时，创建账户
   async create(payload: z.infer<typeof zodSchemas.userCredential>) {
+    const systemSettings = await SystemSettingsController.get()
+    if (!systemSettings.allowRegister) {
+      throw new Error('当前站点已关闭注册，请联系管理员')
+    }
     const { email, password } = zodSchemas.userCredential.parse(payload)
     const count = await db.$count(schema.users, eq(schema.users.email, email))
     if (count > 0) throw new Error('邮箱已被注册使用')

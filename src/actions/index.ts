@@ -2,6 +2,7 @@
 
 import {
   CredentialsController,
+  SystemSettingsController,
   UserAiBatchJobController,
   PublicBookmarkController,
   PublicTagController,
@@ -55,6 +56,8 @@ export const actDeleteUserBookmark = make(UserBookmarkController.delete)
 export const actUpdateUserBookmark = make(UserBookmarkController.update)
 export const actQuickCreateUserBookmarkByAi = make(quickCreateUserBookmarkByAiInput)
 export const actSaveUserAiModelSettings = make(UserAiModelController.save)
+export const actGetSystemSettings = make(SystemSettingsController.get, { guard: false })
+export const actSaveSystemSettings = make(SystemSettingsController.save, { guard: 'admin' })
 export const actStartUserAiBatchUpdate = make(UserAiBatchJobController.start, {
   schema: startUserAiBatchJobInputSchema,
 })
