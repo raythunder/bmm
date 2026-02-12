@@ -58,6 +58,7 @@ export const userBookmarks = sqliteTable(
     pinyin: text('pinyin'),
     description: text('description'),
     isPinned: integer('isPinned', { mode: 'boolean' }),
+    aiHtmlFetchFailed: integer('aiHtmlFetchFailed', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('createdAt', { mode: 'timestamp' })
       .notNull()
       .$defaultFn(() => new Date()),

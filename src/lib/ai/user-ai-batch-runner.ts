@@ -3,7 +3,7 @@ import UserTagController from '@/controllers/UserTag.controller'
 import { db, schema } from '@/db'
 import { runConcurrentBatch } from '@/lib/ai/run-concurrent-batch'
 import { getUnmatchedTagNames, mapTagNamesToTagIds, sanitizeAiTagNames } from '@/utils'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { analyzeWebsite } from '.'
 
 interface BatchTargetBookmark {
@@ -87,46 +87,67 @@ function getErrorMessage(error: unknown) {
   return '未知错误'
 }
 
+function isHtmlFetchFailure(error: unknown) {
+  return getErrorMessage(error).startsWith('获取 HTML')
+}
+
+async function markBookmarkHtmlFetchFailed(userId: UserId, bookmarkId: BookmarkId) {
+  await db
+    .update(schema.userBookmarks)
+    .set({
+      aiHtmlFetchFailed: true,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(schema.userBookmarks.userId, userId), eq(schema.userBookmarks.id, bookmarkId)))
+}
+
 async function processSingleBookmark(params: {
   bookmark: BatchTargetBookmark
   userId: UserId
   targetTagName: string
   loadTags: (force?: boolean) => Promise<SelectTag[]>
 }) {
-  const tags = await params.loadTags()
-  const analyzed = await analyzeWebsite(
-    params.bookmark.url,
-    tags.map((tag) => tag.name),
-    params.userId
-  )
+  try {
+    const tags = await params.loadTags()
+    const analyzed = await analyzeWebsite(
+      params.bookmark.url,
+      tags.map((tag) => tag.name),
+      params.userId
+    )
 
-  const aiTagNames = sanitizeAiTagNames(analyzed.tags)
-  const missingTagNames = getUnmatchedTagNames(aiTagNames, tags)
-  if (missingTagNames.length) {
-    await UserTagController.tryCreateTags(missingTagNames, params.userId)
-    await params.loadTags(true)
-  }
-
-  const latestTags = await params.loadTags()
-  let relatedTagIds = mapTagNamesToTagIds(aiTagNames, latestTags)
-
-  if (!relatedTagIds.length) {
-    let otherTag = latestTags.find((tag) => tag.name === params.targetTagName)
-    if (!otherTag) {
-      await UserTagController.tryCreateTags([params.targetTagName], params.userId)
-      const refreshedTags = await params.loadTags(true)
-      otherTag = refreshedTags.find((tag) => tag.name === params.targetTagName)
+    const aiTagNames = sanitizeAiTagNames(analyzed.tags)
+    const missingTagNames = getUnmatchedTagNames(aiTagNames, tags)
+    if (missingTagNames.length) {
+      await UserTagController.tryCreateTags(missingTagNames, params.userId)
+      await params.loadTags(true)
     }
-    relatedTagIds = otherTag ? [otherTag.id] : []
-  }
 
-  await UserBookmarkController.updateByUserId(params.userId, {
-    id: params.bookmark.id,
-    name: analyzed.title,
-    icon: analyzed.favicon,
-    description: analyzed.description,
-    relatedTagIds,
-  })
+    const latestTags = await params.loadTags()
+    let relatedTagIds = mapTagNamesToTagIds(aiTagNames, latestTags)
+
+    if (!relatedTagIds.length) {
+      let otherTag = latestTags.find((tag) => tag.name === params.targetTagName)
+      if (!otherTag) {
+        await UserTagController.tryCreateTags([params.targetTagName], params.userId)
+        const refreshedTags = await params.loadTags(true)
+        otherTag = refreshedTags.find((tag) => tag.name === params.targetTagName)
+      }
+      relatedTagIds = otherTag ? [otherTag.id] : []
+    }
+
+    await UserBookmarkController.updateByUserId(params.userId, {
+      id: params.bookmark.id,
+      name: analyzed.title,
+      icon: analyzed.favicon,
+      description: analyzed.description,
+      relatedTagIds,
+    })
+  } catch (error) {
+    if (isHtmlFetchFailure(error)) {
+      await markBookmarkHtmlFetchFailed(params.userId, params.bookmark.id)
+    }
+    throw error
+  }
 }
 
 async function finalizeJob(jobId: number) {

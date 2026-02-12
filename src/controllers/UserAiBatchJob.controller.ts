@@ -75,7 +75,13 @@ async function getTargetBookmarks(userId: UserId, tagName: string) {
     })
     .from(userBookmarks)
     .innerJoin(userBookmarkToTag, eq(userBookmarkToTag.bId, userBookmarks.id))
-    .where(and(eq(userBookmarks.userId, userId), eq(userBookmarkToTag.tId, targetTag.id)))
+    .where(
+      and(
+        eq(userBookmarks.userId, userId),
+        eq(userBookmarkToTag.tId, targetTag.id),
+        eq(userBookmarks.aiHtmlFetchFailed, false)
+      )
+    )
 
   return rows
 }

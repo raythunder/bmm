@@ -74,7 +74,7 @@ export function PublicAndUserNavbar(props: Props) {
     isSelectedMenuToggle: false,
     isAiBatchDrawerOpen: false,
   })
-  const showAiBatchUpdateAction = isUserSpace && pathname.startsWith(PageRoutes.User.tags())
+  const showAiBatchUpdateAction = isUserSpace
 
   function showSearchInput() {
     if (!totalBookmarks) return false
