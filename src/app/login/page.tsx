@@ -231,14 +231,16 @@ export default function Page() {
                 </ReButton>
               </Form>
 
-              <ReButton
-                className="bg-foreground text-background mt-8"
-                fullWidth
-                startContent={<span className="icon-[mdi--github] text-2xl" />}
-                onClick={handleGithubAuth}
-              >
-                Github 授权登录（免注册）
-              </ReButton>
+              {state.allowRegister && (
+                <ReButton
+                  className="bg-foreground text-background mt-8"
+                  fullWidth
+                  startContent={<span className="icon-[mdi--github] text-2xl" />}
+                  onClick={handleGithubAuth}
+                >
+                  Github 授权登录（免注册）
+                </ReButton>
+              )}
 
               {state.authError && (
                 <div role="login-failed-message" className="mt-8 rounded-xl bg-red-50/70 p-4">
