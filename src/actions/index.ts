@@ -18,6 +18,7 @@ import {
   aiAnalyzeWebsiteInput,
   checkGithubOAuthConfig,
   extractHtmlInfoInput,
+  quickCreateUserBookmarkByAiInput,
 } from './items'
 import { makeAction as make } from './make-action'
 
@@ -52,6 +53,7 @@ export const actInsertUserBookmark = make(UserBookmarkController.insert)
 export const actQueryUserBookmark = make(UserBookmarkController.query)
 export const actDeleteUserBookmark = make(UserBookmarkController.delete)
 export const actUpdateUserBookmark = make(UserBookmarkController.update)
+export const actQuickCreateUserBookmarkByAi = make(quickCreateUserBookmarkByAiInput)
 export const actSaveUserAiModelSettings = make(UserAiModelController.save)
 export const actStartUserAiBatchUpdate = make(UserAiBatchJobController.start, {
   schema: startUserAiBatchJobInputSchema,

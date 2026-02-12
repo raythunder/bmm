@@ -11,6 +11,7 @@ import Banner from './components/Banner'
 import BookmarkCard from './components/BookmarkCard'
 import BookmarkContainer from './components/BookmarkContainer'
 import LoadMore from './components/LoadMore'
+import QuickAddBookmark from './components/QuickAddBookmark'
 import TagPicker from './components/TagPicker'
 import { HomeBodyContext, HomeBodyProvider } from './ctx'
 
@@ -86,6 +87,17 @@ export default function HomeBody(props: Props) {
           ),
         }))
       },
+      upsertBookmark(bookmark) {
+        setState((oldState) => {
+          const alreadyExists = oldState.bookmarks.some((item) => item.id === bookmark.id)
+          const nextBookmarks = alreadyExists
+            ? oldState.bookmarks.map((item) => (item.id === bookmark.id ? bookmark : item))
+            : [bookmark, ...oldState.bookmarks]
+          return {
+            bookmarks: sortBookmarksByPinned(nextBookmarks),
+          }
+        })
+      },
       updateBookmark(bookmark) {
         setState((oldState) => ({
           bookmarks: sortBookmarksByPinned(
@@ -118,6 +130,7 @@ export default function HomeBody(props: Props) {
             totalBookmarks={props.totalBookmarks}
             searchedTotalBookmarks={props.searchedTotalBookmarks}
           />
+          {isUserSpace && <QuickAddBookmark />}
           <BookmarkContainer>
             {bookmarks.map((bookmark) => {
               return <BookmarkCard {...bookmark} key={bookmark.id} />
