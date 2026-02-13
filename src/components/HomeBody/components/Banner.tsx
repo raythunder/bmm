@@ -18,6 +18,8 @@ interface Props {
   tags: SelectTag[]
   totalBookmarks: number
   searchedTotalBookmarks?: number
+  favoriteTagIds?: TagId[]
+  onToggleFavoriteTag?: (tagId: TagId) => void
 }
 
 export default function Banner(props: Props) {
@@ -51,10 +53,26 @@ export default function Banner(props: Props) {
   if (pathname.startsWith(routes.tags()) && selectedTags.length) {
     const isIntersected = selectedTags.length > 1
     const firstTag = selectedTags[0]
+    const canToggleFavorite =
+      !isIntersected && pageUtil.isUserSpace && !!props.onToggleFavoriteTag
+    const isFavorite = !!props.favoriteTagIds?.includes(firstTag.id)
     return (
       <Wrapper>
         <h1 className={H1_CLS}>
           <span> {isIntersected ? '标签交叉筛选' : firstTag.name}</span>
+          {canToggleFavorite && (
+            <button
+              type="button"
+              aria-label={isFavorite ? `取消收藏 ${firstTag.name}` : `收藏 ${firstTag.name}`}
+              title={isFavorite ? `取消收藏 ${firstTag.name}` : `收藏 ${firstTag.name}`}
+              className="text-foreground-400 hover:text-foreground-700 hover:bg-default-200 ml-2 inline-flex size-8 items-center justify-center rounded-md transition"
+              onClick={() => props.onToggleFavoriteTag?.(firstTag.id)}
+            >
+              <span
+                className={isFavorite ? 'icon-[tabler--star-filled] text-yellow-500' : 'icon-[tabler--star]'}
+              />
+            </button>
+          )}
         </h1>
         {isIntersected && (
           <div className="space-x-2">

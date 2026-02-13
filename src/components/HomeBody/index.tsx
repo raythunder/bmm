@@ -199,6 +199,8 @@ export default function HomeBody(props: Props) {
             tags={state.tags}
             totalBookmarks={props.totalBookmarks}
             searchedTotalBookmarks={props.searchedTotalBookmarks}
+            favoriteTagIds={state.favoriteTagIds}
+            onToggleFavoriteTag={toggleFavoriteTag}
           />
           {isUserSpace && <QuickAddBookmark />}
           {isUserSpace && !!state.favoriteTagIds.length && (

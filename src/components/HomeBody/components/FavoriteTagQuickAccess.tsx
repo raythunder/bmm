@@ -103,6 +103,7 @@ function SortableFavoriteTag(props: {
   onClickTag: (arg: { tag: SelectTag; event?: MouseEvent<HTMLAnchorElement> }) => void
 }) {
   const { tag, isSelected } = props
+  const { title } = getTagLinkAttrs(tag)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tag.id,
   })
@@ -115,7 +116,7 @@ function SortableFavoriteTag(props: {
 
   return (
     <a
-      {...getTagLinkAttrs(tag)}
+      title={title}
       ref={setNodeRef}
       style={style}
       className={cn(
