@@ -1,19 +1,23 @@
 import { TagPickerBox } from '@/components/common'
 import ReInput from '@/components/re-export/ReInput'
+import { usePageUtil } from '@/hooks'
 import TagPickerItem from '@/components/TagPickerItem'
 import { testTagNameOrPinyin } from '@/utils'
 import { Kbd, ScrollShadow, Switch, cn } from '@heroui/react'
 import { useMount, useSetState, useUpdateEffect } from 'ahooks'
 import { isEqual } from 'lodash'
-import { CSSProperties, useLayoutEffect, useRef } from 'react'
+import { CSSProperties, useLayoutEffect, useMemo, useRef } from 'react'
 import { useHomePageContext } from '../ctx'
 
 interface Props {
   className?: string
   style?: CSSProperties
+  favoriteTagIds?: TagId[]
+  onToggleFavorite?: (tagId: TagId) => void
 }
 export default function TagPicker(props: Props) {
   const { tags } = useHomePageContext()
+  const pageUtil = usePageUtil()
   const scrollDivRef = useRef<null | HTMLDivElement>(null)
   const [state, setState] = useSetState({
     filterTagInput: '',
@@ -21,6 +25,10 @@ export default function TagPicker(props: Props) {
     inputWrapperCls: '',
     showTags: tags,
   })
+  const favoriteTagIdSet = useMemo(
+    () => new Set(props.favoriteTagIds || []),
+    [props.favoriteTagIds]
+  )
 
   useLayoutEffect(() => {
     let showTags = []
@@ -68,7 +76,14 @@ export default function TagPicker(props: Props) {
           role={TagPickerBox.SCROLLER_ROLE}
         >
           {state.showTags.map((tag) => (
-            <TagPickerItem key={tag.id} tag={tag} tags={tags} />
+            <TagPickerItem
+              key={tag.id}
+              tag={tag}
+              tags={tags}
+              isFavorite={favoriteTagIdSet.has(tag.id)}
+              showFavoriteAction={pageUtil.isUserSpace}
+              onToggleFavorite={props.onToggleFavorite}
+            />
           ))}
         </ScrollShadow>
       </div>

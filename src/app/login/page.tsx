@@ -51,6 +51,7 @@ export default function Page() {
     loginRegisterLoading: false,
     authError: null as null | { title: string; desc: string },
   })
+  const showGithubAuthButton = state.allowRegister || process.env.NODE_ENV === 'development'
   const [validationErrors, setValidationErrors] = useState<FormProps['validationErrors']>()
 
   const formRef = useRef<HTMLFormElement>(null)
@@ -231,7 +232,7 @@ export default function Page() {
                 </ReButton>
               </Form>
 
-              {state.allowRegister && (
+              {showGithubAuthButton && (
                 <ReButton
                   className="bg-foreground text-background mt-8"
                   fullWidth

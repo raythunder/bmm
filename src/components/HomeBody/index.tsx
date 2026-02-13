@@ -5,11 +5,14 @@ import { Assets, PageRoutes } from '@cfg'
 import { Divider } from '@heroui/react'
 import { useSetState } from 'ahooks'
 import Image from 'next/image'
+import { useSession } from 'next-auth/react'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
+import { TagPickerBox } from '../common'
 import Banner from './components/Banner'
 import BookmarkCard from './components/BookmarkCard'
 import BookmarkContainer from './components/BookmarkContainer'
+import FavoriteTagQuickAccess from './components/FavoriteTagQuickAccess'
 import LoadMore from './components/LoadMore'
 import QuickAddBookmark from './components/QuickAddBookmark'
 import TagPicker from './components/TagPicker'
@@ -30,15 +33,22 @@ function sortBookmarksByPinned(bookmarks: SelectBookmark[]) {
   })
 }
 
+function isSameTagIdList(a: TagId[], b: TagId[]) {
+  if (a.length !== b.length) return false
+  return a.every((id, idx) => id === b[idx])
+}
+
 export default function HomeBody(props: Props) {
   const pathname = usePathname()
   const params = useParams()
   const isClient = useIsClient()
+  const session = useSession()
   const isUserSpace = usePageUtil().isUserSpace
   const [state, setState] = useSetState({
     tags: props.tags || [],
     bookmarks: props.bookmarks || [],
     selectedTags: [] as SelectTag[],
+    favoriteTagIds: [] as TagId[],
     hasMore: null as boolean | null,
   })
 
@@ -50,6 +60,30 @@ export default function HomeBody(props: Props) {
     const bookmarks = sortBookmarksByPinned(props.bookmarks)
     setState({ bookmarks })
   }, [props.bookmarks, setState])
+
+  useEffect(() => {
+    if (!isUserSpace) return
+    if (session.status === 'loading') return
+
+    const userId = session.data?.user?.id
+    if (!userId) return
+    const loadedTagIds = TagPickerBox.getFavoriteTagIds(userId)
+    const validTagIds = loadedTagIds.filter((id) => state.tags.some((tag) => tag.id === id))
+
+    if (!isSameTagIdList(loadedTagIds, validTagIds)) {
+      TagPickerBox.setFavoriteTagIds(validTagIds, userId)
+    }
+    if (!isSameTagIdList(validTagIds, state.favoriteTagIds)) {
+      setState({ favoriteTagIds: validTagIds })
+    }
+  }, [
+    isUserSpace,
+    session.status,
+    session.data?.user?.id,
+    state.tags,
+    state.favoriteTagIds,
+    setState,
+  ])
 
   // 根据 slug 更新 selectedTags
   useEffect(() => {
@@ -63,6 +97,23 @@ export default function HomeBody(props: Props) {
 
   const bookmarks = state.bookmarks
   const isSearchPage = pathname === (isUserSpace ? PageRoutes.User : PageRoutes.Public).SEARCH
+
+  function updateFavoriteTagIds(ids: TagId[]) {
+    const userId = session.data?.user?.id
+    if (!userId) return
+    const validTagIds = [...new Set(ids)].filter((id) => state.tags.some((tag) => tag.id === id))
+    if (isSameTagIdList(validTagIds, state.favoriteTagIds)) return
+    setState({ favoriteTagIds: validTagIds })
+    TagPickerBox.setFavoriteTagIds(validTagIds, userId)
+  }
+
+  function toggleFavoriteTag(tagId: TagId) {
+    const exists = state.favoriteTagIds.includes(tagId)
+    const nextTagIds = exists
+      ? state.favoriteTagIds.filter((id) => id !== tagId)
+      : state.favoriteTagIds.concat(tagId)
+    updateFavoriteTagIds(nextTagIds)
+  }
 
   const homeBodyCtx = useMemo<HomeBodyContext>(() => {
     return {
@@ -121,7 +172,7 @@ export default function HomeBody(props: Props) {
   return (
     <HomeBodyProvider value={homeBodyCtx}>
       <aside className="max-xs:hidden fixed top-16 bottom-0 w-56 pl-6">
-        <TagPicker />
+        <TagPicker favoriteTagIds={state.favoriteTagIds} onToggleFavorite={toggleFavoriteTag} />
       </aside>
       <div className="xs:ml-56">
         <div className="flex flex-col px-6 pb-14">
@@ -131,6 +182,13 @@ export default function HomeBody(props: Props) {
             searchedTotalBookmarks={props.searchedTotalBookmarks}
           />
           {isUserSpace && <QuickAddBookmark />}
+          {isUserSpace && !!state.favoriteTagIds.length && (
+            <FavoriteTagQuickAccess
+              tags={state.tags}
+              favoriteTagIds={state.favoriteTagIds}
+              onReorder={updateFavoriteTagIds}
+            />
+          )}
           <BookmarkContainer>
             {bookmarks.map((bookmark) => {
               return <BookmarkCard {...bookmark} key={bookmark.id} />

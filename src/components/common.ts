@@ -17,6 +17,35 @@ export const TagPickerBox = {
   SCROLLER_ROLE: 'tag-picker-scroller',
   ONLY_MAIN: 'tag-picker-only-main-tags',
   TOP: 'tag-picker-last-scrollTop',
+  FAVORITE_TAG_IDS_PREFIX: 'tag-picker-favorite-tag-ids',
+  getFavoriteTagIdsStorageKey: (userId?: UserId | null) =>
+    `${TagPickerBox.FAVORITE_TAG_IDS_PREFIX}:${userId || 'guest'}`,
+  getFavoriteTagIds: (userId?: UserId | null) => {
+    const key = TagPickerBox.getFavoriteTagIdsStorageKey(userId)
+    try {
+      const raw = JSON.parse(localStorage.getItem(key) || '[]')
+      if (!Array.isArray(raw)) return []
+      const ids: TagId[] = []
+      const existed = new Set<TagId>()
+      for (const item of raw) {
+        const value = Number(item)
+        if (!Number.isInteger(value) || value <= 0) continue
+        if (existed.has(value)) continue
+        existed.add(value)
+        ids.push(value)
+      }
+      return ids
+    } catch {
+      return []
+    }
+  },
+  setFavoriteTagIds: (ids: TagId[], userId?: UserId | null) => {
+    const key = TagPickerBox.getFavoriteTagIdsStorageKey(userId)
+    const normalizedIds = [...new Set(ids.map((id) => Number(id)))].filter((value) =>
+      Number.isInteger(value)
+    )
+    localStorage.setItem(key, JSON.stringify(normalizedIds))
+  },
   getOnlyMain: () => localStorage.getItem(TagPickerBox.ONLY_MAIN) === 'true',
   setOnlyMain: (onlyMain: boolean) => {
     localStorage.setItem(TagPickerBox.ONLY_MAIN, onlyMain.toString())
