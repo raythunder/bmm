@@ -98,7 +98,7 @@ export function PublicAndUserNavbar(props: Props) {
         <NavbarBrand className="max-xs:basis-20 xs:basis-56 shrink-0 grow-0">
           <Link href={routes.INDEX} className="flex-items-center gap-4">
             <Image src={Assets.LOGO_SVG} width={32} height={32} alt="logo" priority />
-            <h3 className="text-foreground-700 translate-y-0.5 font-mono text-2xl font-light">
+            <h3 className="text-foreground-700 translate-y-0.5 font-mono text-2xl font-light max-xs:hidden">
               {isUserSpace ? user?.name : WEBSITE_NAME}
             </h3>
           </Link>

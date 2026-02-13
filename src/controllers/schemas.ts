@@ -25,3 +25,5 @@ export const findManyBookmarksSchema = z.object({
     .optional()
     .transform((v) => Number(v) || 1),
 })
+
+export const userFavoriteTagIdsSchema = z.number().int().positive().array().max(999)

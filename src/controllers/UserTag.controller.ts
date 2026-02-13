@@ -1,8 +1,9 @@
 import { db, schema } from '@/db'
 import { getAuthedUserId } from '@/lib/auth'
+import { parseStoredFavoriteTagIds, stringifyFavoriteTagIds } from '@/lib/user-favorite-tags'
 import { and, desc, eq, inArray, notInArray, or } from 'drizzle-orm'
 
-const { userTagToTag, userTags } = schema
+const { userTagToTag, userTags, users } = schema
 
 /** 在 SelectTag 基础上扩展了 `{ relatedTagIds: id[] }` */
 type SelectUserTag = typeof userTags.$inferSelect & {
@@ -36,6 +37,100 @@ async function upsertRelations(userId: UserId, id: TagId, ids?: TagId[]) {
       ),
   ]
   await Promise.all(tasks)
+}
+
+function isFavoriteTagIdsColumnMissingError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  let current: unknown = error
+  while (current instanceof Error) {
+    const message = current.message
+    if (
+      message.includes('favoriteTagIds') &&
+      (message.includes('no such column') || message.includes('does not exist'))
+    ) {
+      return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+function isDuplicateFavoriteTagIdsColumnError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  let current: unknown = error
+  while (current instanceof Error) {
+    const message = current.message
+    if (
+      message.includes('favoriteTagIds') &&
+      (message.includes('duplicate column') ||
+        message.includes('already exists') ||
+        message.includes('duplicate_column'))
+    ) {
+      return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+async function ensureFavoriteTagIdsColumn() {
+  const client = db.$client as any
+  const runRawSql = async (statement: string) => {
+    if (typeof client.execute === 'function') {
+      await client.execute(statement)
+      return
+    }
+    if (typeof client.unsafe === 'function') {
+      await client.unsafe(statement)
+      return
+    }
+    throw new Error('当前数据库驱动不支持执行原始 SQL')
+  }
+
+  try {
+    if (process.env.DB_DRIVER === 'postgresql') {
+      await runRawSql('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "favoriteTagIds" text')
+      return
+    }
+    await runRawSql('ALTER TABLE `user` ADD `favoriteTagIds` text')
+  } catch (error) {
+    if (isDuplicateFavoriteTagIdsColumnError(error)) return
+    throw error
+  }
+}
+
+async function getStoredFavoriteTagIds(userId: UserId) {
+  try {
+    const user = await db.query.users.findFirst({
+      columns: { favoriteTagIds: true },
+      where: eq(users.id, userId),
+    })
+    return parseStoredFavoriteTagIds(user?.favoriteTagIds)
+  } catch (error) {
+    if (!isFavoriteTagIdsColumnMissingError(error)) throw error
+    await ensureFavoriteTagIdsColumn()
+    const user = await db.query.users.findFirst({
+      columns: { favoriteTagIds: true },
+      where: eq(users.id, userId),
+    })
+    return parseStoredFavoriteTagIds(user?.favoriteTagIds)
+  }
+}
+
+async function setStoredFavoriteTagIds(userId: UserId, ids: TagId[]) {
+  try {
+    await db
+      .update(users)
+      .set({ favoriteTagIds: stringifyFavoriteTagIds(ids) })
+      .where(eq(users.id, userId))
+  } catch (error) {
+    if (!isFavoriteTagIdsColumnMissingError(error)) throw error
+    await ensureFavoriteTagIdsColumn()
+    await db
+      .update(users)
+      .set({ favoriteTagIds: stringifyFavoriteTagIds(ids) })
+      .where(eq(users.id, userId))
+  }
 }
 
 // 操作用户标签时的限制工具
@@ -91,7 +186,31 @@ const UserTagController = {
   async remove(tag: Pick<SelectUserTag, 'id'>) {
     const userId = await getAuthedUserId()
     const res = await db.delete(userTags).where(limiter(userId, tag.id)).returning()
+    if (res.length) {
+      const oldFavoriteTagIds = await getStoredFavoriteTagIds(userId)
+      const nextFavoriteTagIds = oldFavoriteTagIds.filter((id) => id !== tag.id)
+      if (oldFavoriteTagIds.length !== nextFavoriteTagIds.length) {
+        await setStoredFavoriteTagIds(userId, nextFavoriteTagIds)
+      }
+    }
     return res
+  },
+
+  async getFavoriteTagIds() {
+    const userId = await getAuthedUserId()
+    const storedIds = await getStoredFavoriteTagIds(userId)
+    const favoriteTagIds = await UserTagController.filterUserTagIds(userId, storedIds)
+    if (favoriteTagIds.length !== storedIds.length) {
+      await setStoredFavoriteTagIds(userId, favoriteTagIds)
+    }
+    return favoriteTagIds
+  },
+
+  async saveFavoriteTagIds(ids: TagId[]) {
+    const userId = await getAuthedUserId()
+    const favoriteTagIds = await UserTagController.filterUserTagIds(userId, ids || [])
+    await setStoredFavoriteTagIds(userId, favoriteTagIds)
+    return favoriteTagIds
   },
 
   /** 获取所有标签的名称 */

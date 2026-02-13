@@ -13,6 +13,7 @@ export const users = sqliteTable('user', {
   image: text('image'),
   role: text({ enum: ['user', 'admin'] }).default('user'),
   aiModelSettings: text('aiModelSettings'),
+  favoriteTagIds: text('favoriteTagIds'),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 })
 

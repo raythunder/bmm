@@ -104,7 +104,7 @@ export default function BookmarkCard(props: Props) {
     <div
       className={cn(
         'group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-4 transition',
-        'max-xs:pb-3 max-xs:dark:border-0 max-xs:dark:bg-foreground-200/20',
+        'max-xs:gap-2 max-xs:rounded-xl max-xs:p-3 max-xs:dark:border-0 max-xs:dark:bg-foreground-200/20',
         'border-foreground-200 dark:border-opacity-60 border-2',
         'xs:hover:border-blue-500 xs:hover:shadow-lg xs:hover:shadow-blue-500/50'
       )}
@@ -117,6 +117,7 @@ export default function BookmarkCard(props: Props) {
           onClick={onClickDelete}
           className={cn(
             'text-danger-500 border-danger-200 hover:text-danger-600 hover:bg-danger-50/30 absolute top-3 right-3 z-10 inline-flex size-9 items-center justify-center rounded-full border transition active:scale-95',
+            'max-xs:top-2 max-xs:right-2 max-xs:size-8',
             alwaysShowActions
               ? 'opacity-100'
               : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
@@ -126,16 +127,24 @@ export default function BookmarkCard(props: Props) {
         </button>
       )}
       <a
-        className={cn('flex-items-center gap-2', showDeleteAction && 'pr-8')}
+        className={cn('flex-items-center max-xs:gap-1.5 gap-2', showDeleteAction && 'pr-8')}
         href={props.url}
         target="_blank"
         rel="noopener noreferrer"
         title={generateLinkTitle()}
         onClick={(event) => event.stopPropagation()}
       >
-        <Favicon src={props.icon} showDefaultIcon alt={`${props.name}网站图标`} />
+        <Favicon
+          src={props.icon}
+          size={isMobile ? 24 : 28}
+          showDefaultIcon
+          alt={`${props.name}网站图标`}
+        />
         <div className="grow truncate">
-          <h3 className="text-foreground-700 xs:text-lg truncate" aria-label={`访问${props.name}`}>
+          <h3
+            className="text-foreground-700 max-xs:text-sm xs:text-lg truncate"
+            aria-label={`访问${props.name}`}
+          >
             {props.name}
           </h3>
         </div>
@@ -143,12 +152,12 @@ export default function BookmarkCard(props: Props) {
       {(() => {
         const desc = props.description
         if (!desc) return <div />
+        if (isMobile) return null
         const node = (
-          <p className="text-foreground-500 line-clamp-3 text-xs break-all" role="description">
+          <p className="text-foreground-500 line-clamp-2 text-xs break-all" role="description">
             {desc}
           </p>
         )
-        if (isMobile) return node
         return (
           <Tooltip delay={300} content={<span className="break-all">{desc}</span>} className="w-80">
             {node}
@@ -156,7 +165,7 @@ export default function BookmarkCard(props: Props) {
         )
       })()}
       <div
-        className="scrollbar-hide flex max-w-full grow items-end gap-2 overflow-auto"
+        className="scrollbar-hide max-xs:gap-1.5 flex max-w-full grow items-end gap-2 overflow-auto"
         aria-label="相关标签"
       >
         {props.relatedTagIds.map((id) => {
@@ -169,7 +178,7 @@ export default function BookmarkCard(props: Props) {
               as="a"
               {...getTagLinkAttrs(tag)}
               onClick={(event) => onClickTag({ tag, event: event as any })}
-              className="text-foreground-500 xs:hover:text-foreground-700 h-fit cursor-pointer border-none py-1 text-xs transition active:opacity-50"
+              className="text-foreground-500 xs:hover:text-foreground-700 max-xs:py-0.5 h-fit cursor-pointer border-none py-1 text-xs transition active:opacity-50"
             >
               {tag.name}
             </Chip>
@@ -179,7 +188,7 @@ export default function BookmarkCard(props: Props) {
       {showCopyAction && (
         <div
           className={cn(
-            'flex justify-end gap-2 transition',
+            'max-xs:gap-1 flex justify-end gap-2 transition',
             alwaysShowActions
               ? 'opacity-100'
               : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
@@ -190,7 +199,7 @@ export default function BookmarkCard(props: Props) {
             <button
               type="button"
               onClick={onClickEdit}
-              className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+              className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
             >
               <span className="icon-[tabler--edit] text-sm" />
               <span>编辑</span>
@@ -199,7 +208,7 @@ export default function BookmarkCard(props: Props) {
           <button
             type="button"
             onClick={onCopyUrl}
-            className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+            className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
           >
             <span className="icon-[tabler--copy] text-sm" />
             <span>复制</span>

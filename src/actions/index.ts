@@ -14,6 +14,7 @@ import {
   pauseUserAiBatchJobInputSchema,
   startUserAiBatchJobInputSchema,
 } from '@/lib/ai/user-ai-batch-types'
+import { userFavoriteTagIdsSchema } from '@/controllers/schemas'
 import {
   aiAnalyzeRelatedTagsInput,
   aiAnalyzeWebsiteInput,
@@ -46,6 +47,10 @@ export const actUpdateUserTag = make(UserTagController.update)
 export const actDeleteUserTag = make(UserTagController.remove)
 export const actUpdateUserTagSortOrders = make(UserTagController.sort)
 export const actTryCreateUserTags = make(UserTagController.tryCreateTags)
+export const actGetUserFavoriteTagIds = make(UserTagController.getFavoriteTagIds)
+export const actSaveUserFavoriteTagIds = make(UserTagController.saveFavoriteTagIds, {
+  schema: userFavoriteTagIdsSchema,
+})
 
 /// UserBookmark
 export const actTotalUserBookmarks = make(UserBookmarkController.total)

@@ -9,7 +9,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { PropsWithChildren } from 'react'
 
 function Wrapper(props: PropsWithChildren) {
-  return <header className="flex-center flex-col gap-4 py-8">{props.children}</header>
+  return <header className="flex-center flex-col gap-4 py-4">{props.children}</header>
 }
 
 const H1_CLS = 'text-3xl font-bold flex-center text-foreground-700'

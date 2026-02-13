@@ -1,14 +1,18 @@
 'use client'
 
+import { actGetUserFavoriteTagIds, actSaveUserFavoriteTagIds } from '@/actions'
 import { useIsClient, usePageUtil } from '@/hooks'
+import {
+  emitUserFavoriteTagIdsChanged,
+  onUserFavoriteTagIdsChanged,
+} from '@/lib/user-favorite-tags-sync'
+import { runAction } from '@/utils/client'
 import { Assets, PageRoutes } from '@cfg'
 import { Divider } from '@heroui/react'
 import { useSetState } from 'ahooks'
 import Image from 'next/image'
-import { useSession } from 'next-auth/react'
 import { useParams, usePathname } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
-import { TagPickerBox } from '../common'
 import Banner from './components/Banner'
 import BookmarkCard from './components/BookmarkCard'
 import BookmarkContainer from './components/BookmarkContainer'
@@ -42,7 +46,6 @@ export default function HomeBody(props: Props) {
   const pathname = usePathname()
   const params = useParams()
   const isClient = useIsClient()
-  const session = useSession()
   const isUserSpace = usePageUtil().isUserSpace
   const [state, setState] = useSetState({
     tags: props.tags || [],
@@ -63,27 +66,35 @@ export default function HomeBody(props: Props) {
 
   useEffect(() => {
     if (!isUserSpace) return
-    if (session.status === 'loading') return
+    void (async () => {
+      const res = await runAction(actGetUserFavoriteTagIds(), {
+        errToast: { hidden: true },
+      })
+      if (!res.ok) return
+      setState((oldState) =>
+        isSameTagIdList(res.data, oldState.favoriteTagIds) ? null : { favoriteTagIds: res.data }
+      )
+    })()
+  }, [isUserSpace, setState])
 
-    const userId = session.data?.user?.id
-    if (!userId) return
-    const loadedTagIds = TagPickerBox.getFavoriteTagIds(userId)
-    const validTagIds = loadedTagIds.filter((id) => state.tags.some((tag) => tag.id === id))
+  useEffect(() => {
+    if (!isUserSpace || !state.favoriteTagIds.length) return
+    const validTagIds = state.favoriteTagIds.filter((id) => state.tags.some((tag) => tag.id === id))
+    if (validTagIds.length === state.favoriteTagIds.length) return
+    updateFavoriteTagIds(validTagIds)
+  }, [isUserSpace, state.favoriteTagIds, state.tags])
 
-    if (!isSameTagIdList(loadedTagIds, validTagIds)) {
-      TagPickerBox.setFavoriteTagIds(validTagIds, userId)
-    }
-    if (!isSameTagIdList(validTagIds, state.favoriteTagIds)) {
-      setState({ favoriteTagIds: validTagIds })
-    }
-  }, [
-    isUserSpace,
-    session.status,
-    session.data?.user?.id,
-    state.tags,
-    state.favoriteTagIds,
-    setState,
-  ])
+  useEffect(() => {
+    if (!isUserSpace) return
+    return onUserFavoriteTagIdsChanged((ids) => {
+      const validTagIds = ids.filter((id) => state.tags.some((tag) => tag.id === id))
+      setState((oldState) =>
+        isSameTagIdList(validTagIds, oldState.favoriteTagIds)
+          ? null
+          : { favoriteTagIds: validTagIds }
+      )
+    })
+  }, [isUserSpace, setState, state.tags])
 
   // 根据 slug 更新 selectedTags
   useEffect(() => {
@@ -99,12 +110,20 @@ export default function HomeBody(props: Props) {
   const isSearchPage = pathname === (isUserSpace ? PageRoutes.User : PageRoutes.Public).SEARCH
 
   function updateFavoriteTagIds(ids: TagId[]) {
-    const userId = session.data?.user?.id
-    if (!userId) return
     const validTagIds = [...new Set(ids)].filter((id) => state.tags.some((tag) => tag.id === id))
     if (isSameTagIdList(validTagIds, state.favoriteTagIds)) return
     setState({ favoriteTagIds: validTagIds })
-    TagPickerBox.setFavoriteTagIds(validTagIds, userId)
+    emitUserFavoriteTagIdsChanged(validTagIds)
+    if (!isUserSpace) return
+    void runAction(actSaveUserFavoriteTagIds(validTagIds), {
+      errToast: { title: '收藏标签保存失败' },
+      onOk(nextIds) {
+        setState((oldState) =>
+          isSameTagIdList(nextIds, oldState.favoriteTagIds) ? null : { favoriteTagIds: nextIds }
+        )
+        emitUserFavoriteTagIdsChanged(nextIds)
+      },
+    })
   }
 
   function toggleFavoriteTag(tagId: TagId) {

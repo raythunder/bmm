@@ -120,7 +120,7 @@ export const Assets = {
 }
 
 export const ExternalLinks = {
-  REPO: 'https://github.com/Y80/bmm',
+  REPO: 'https://github.com/raythunder/bmm',
 } as const
 
 /** 默认情况下每页获取的书签个数；出于栅格布局的考虑它应该是 3 4 的公倍数 */
