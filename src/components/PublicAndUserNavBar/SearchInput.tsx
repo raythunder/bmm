@@ -15,6 +15,7 @@ export function SearchInput(props: BaseComponentProps) {
   const [state, setState] = useSetState({
     input: searchParams.get('keyword') || '',
     focusInput: false,
+    isComposing: false,
   })
   const inputRef = useRef<null | HTMLDivElement>(null)
 
@@ -28,7 +29,10 @@ export function SearchInput(props: BaseComponentProps) {
   useEventListener(
     'keydown',
     (e) => {
-      e.key === 'Enter' && handleSearch()
+      const keyboardEvent = e as KeyboardEvent
+      if (keyboardEvent.key !== 'Enter') return
+      if (keyboardEvent.isComposing || state.isComposing) return
+      handleSearch()
     },
     { target: inputRef }
   )
@@ -41,7 +45,10 @@ export function SearchInput(props: BaseComponentProps) {
     }
   })
 
-  useDebounceEffect(() => handleSearch(), [state.input], {
+  useDebounceEffect(() => {
+    if (state.isComposing) return
+    handleSearch()
+  }, [state.input, state.isComposing], {
     wait: 500,
     leading: false,
     trailing: true,
@@ -70,6 +77,8 @@ export function SearchInput(props: BaseComponentProps) {
       onClear={state.input ? () => router.push(routes.INDEX) : undefined}
       onValueChange={(v) => setState({ input: v })}
       onFocusChange={(v) => setState({ focusInput: v })}
+      onCompositionStart={() => setState({ isComposing: true })}
+      onCompositionEnd={() => setState({ isComposing: false })}
     />
   )
 }
