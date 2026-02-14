@@ -1,8 +1,20 @@
 import { db, schema } from '@/db'
+import { auth } from '@/lib/auth'
 import { z } from '@/lib/zod'
 import { getPinyin } from '@/utils'
 import { DEFAULT_BOOKMARK_PAGESIZE } from '@cfg'
-import { and, asc, count, desc, eq, inArray, notInArray, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { createBookmarkFilterByKeyword } from './common'
 import PublicTagController from './PublicTag.controller'
 import { findManyBookmarksSchema } from './schemas'
@@ -33,8 +45,88 @@ export async function fullSetBookmarkToTag(bId: BookmarkId, tagIds: TagId[]) {
   return
 }
 
+function isPublicVisibilityColumnMissingError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  let current: unknown = error
+  while (current instanceof Error) {
+    const message = current.message
+    if (
+      message.includes('isPublic') &&
+      (message.includes('no such column') || message.includes('does not exist'))
+    ) {
+      return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+function isDuplicatePublicVisibilityColumnError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  let current: unknown = error
+  while (current instanceof Error) {
+    const message = current.message
+    if (
+      message.includes('isPublic') &&
+      (message.includes('duplicate column') ||
+        message.includes('already exists') ||
+        message.includes('duplicate_column'))
+    ) {
+      return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
+
+async function runRawSql(statement: string) {
+  const client = db.$client as any
+  if (typeof client.execute === 'function') {
+    await client.execute(statement)
+    return
+  }
+  if (typeof client.unsafe === 'function') {
+    await client.unsafe(statement)
+    return
+  }
+  throw new Error('当前数据库驱动不支持执行原始 SQL')
+}
+
+export async function ensurePublicBookmarkVisibilityColumn() {
+  try {
+    await db
+      .select({ isPublic: publicBookmarks.isPublic })
+      .from(publicBookmarks)
+      .limit(1)
+  } catch (error) {
+    if (!isPublicVisibilityColumnMissingError(error)) throw error
+    try {
+      if (process.env.DB_DRIVER === 'postgresql') {
+        await runRawSql(
+          'ALTER TABLE "publicBookmarks" ADD COLUMN IF NOT EXISTS "isPublic" boolean DEFAULT true'
+        )
+        await runRawSql(
+          'UPDATE "publicBookmarks" SET "isPublic" = true WHERE "isPublic" IS NULL'
+        )
+      } else {
+        await runRawSql('ALTER TABLE `publicBookmarks` ADD `isPublic` integer DEFAULT 1')
+        await runRawSql('UPDATE `publicBookmarks` SET `isPublic` = 1 WHERE `isPublic` IS NULL')
+      }
+    } catch (migrationError) {
+      if (!isDuplicatePublicVisibilityColumnError(migrationError)) throw migrationError
+    }
+  }
+}
+
+async function getPublicVisibilityFilter() {
+  const session = await auth()
+  if (session?.user?.id) return undefined
+  return or(eq(publicBookmarks.isPublic, true), isNull(publicBookmarks.isPublic))
+}
+
 const PublicBookmarkController = {
   async insert(bookmark: InsertPublicBookmark) {
+    await ensurePublicBookmarkVisibilityColumn()
     const { relatedTagIds, ...resetBookmark } = bookmark
     // 插入之前先检查当前用户是否有相同网址或名称的记录
     const count = await db.$count(
@@ -51,6 +143,7 @@ const PublicBookmarkController = {
     return rows[0]
   },
   async query(bookmark: Pick<SelectBookmark, 'id'>) {
+    await ensurePublicBookmarkVisibilityColumn()
     const res = await db.query.publicBookmarks.findFirst({
       where: eq(publicBookmarks.id, bookmark.id),
       with: { relatedTagIds: true },
@@ -62,6 +155,7 @@ const PublicBookmarkController = {
     }
   },
   async update(bookmark: Partial<SelectBookmark> & Pick<SelectBookmark, 'id'>) {
+    await ensurePublicBookmarkVisibilityColumn()
     const { relatedTagIds, id, ...resetBookmark } = bookmark
     const tasks = []
     if (relatedTagIds?.length) {
@@ -85,6 +179,7 @@ const PublicBookmarkController = {
     return res.pop()
   },
   async delete(bookmark: Pick<SelectBookmark, 'id'>) {
+    await ensurePublicBookmarkVisibilityColumn()
     const res = await db
       .delete(publicBookmarks)
       .where(eq(publicBookmarks.id, bookmark.id))
@@ -95,10 +190,15 @@ const PublicBookmarkController = {
    * 高级搜索书签列表
    */
   async findMany(query?: z.output<typeof findManyBookmarksSchema>) {
+    await ensurePublicBookmarkVisibilityColumn()
     query ||= findManyBookmarksSchema.parse({})
     const { keyword, tagIds = [], tagNames, page, limit, sorterKey } = query
+    const visibilityFilter = await getPublicVisibilityFilter()
     const getFilters = async () => {
       const filters = []
+      if (visibilityFilter) {
+        filters.push(visibilityFilter)
+      }
       if (keyword) {
         filters.push(createBookmarkFilterByKeyword(publicBookmarks, keyword))
       }
@@ -151,10 +251,13 @@ const PublicBookmarkController = {
     }
   },
   async random() {
+    await ensurePublicBookmarkVisibilityColumn()
+    const visibilityFilter = await getPublicVisibilityFilter()
     const list = await db.query.publicBookmarks.findMany({
       with: { relatedTagIds: true },
       orderBy: sql`RANDOM()`,
       limit: DEFAULT_BOOKMARK_PAGESIZE,
+      where: visibilityFilter,
     })
     return {
       list: list.map((item) => ({
@@ -165,16 +268,24 @@ const PublicBookmarkController = {
   },
   /** 获取所有书签数量 */
   async total() {
-    return await db.$count(publicBookmarks)
+    await ensurePublicBookmarkVisibilityColumn()
+    const visibilityFilter = await getPublicVisibilityFilter()
+    if (!visibilityFilter) {
+      return await db.$count(publicBookmarks)
+    }
+    return await db.$count(publicBookmarks, visibilityFilter)
   },
   /** 获取最近更新的 $DEFAULT_BOOKMARK_PAGESIZE 个书签 */
   async recent() {
+    await ensurePublicBookmarkVisibilityColumn()
+    const visibilityFilter = await getPublicVisibilityFilter()
     const res = await db.query.publicBookmarks.findMany({
       orderBy(fields, op) {
         return op.desc(fields.updatedAt)
       },
       with: { relatedTagIds: true },
       limit: DEFAULT_BOOKMARK_PAGESIZE,
+      where: visibilityFilter,
     })
     return {
       list: res.map((item) => ({
@@ -185,8 +296,13 @@ const PublicBookmarkController = {
   },
   /** 根据关键词搜索书签 */
   async search(keyword: string) {
+    await ensurePublicBookmarkVisibilityColumn()
+    const visibilityFilter = await getPublicVisibilityFilter()
+    const filters = visibilityFilter
+      ? and(createBookmarkFilterByKeyword(publicBookmarks, keyword), visibilityFilter)
+      : createBookmarkFilterByKeyword(publicBookmarks, keyword)
     const res = await db.query.publicBookmarks.findMany({
-      where: createBookmarkFilterByKeyword(publicBookmarks, keyword),
+      where: filters,
       with: { relatedTagIds: true },
       limit: 100,
     })

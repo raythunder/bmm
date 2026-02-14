@@ -1,11 +1,16 @@
-import { actDeletePublicBookmark, actDeleteUserBookmark } from '@/actions'
+import {
+  actDeletePublicBookmark,
+  actDeleteUserBookmark,
+  actToggleUserBookmarkPublic,
+  actUpdatePublicBookmark,
+} from '@/actions'
 import Favicon from '@/components/Favicon'
 import MyModal from '@/components/MyModal'
 import { useIsMobile, usePageUtil } from '@/hooks'
 import { useOnClickTag } from '@/hooks/useOnClickTag'
 import { runAction } from '@/utils/client'
 import { getTagLinkAttrs } from '@/utils'
-import { Chip, addToast, cn, Tooltip } from '@heroui/react'
+import { Chip, Switch, addToast, cn, Tooltip } from '@heroui/react'
 import { useSession } from 'next-auth/react'
 import { useState } from 'react'
 import BookmarkEditModal from './BookmarkEditModal'
@@ -27,6 +32,7 @@ export default function BookmarkCard(props: Props) {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [publicSwitchLoading, setPublicSwitchLoading] = useState(false)
 
   const isAuthenticated = session.status === 'authenticated'
   const canEditInCurrentSpace =
@@ -35,6 +41,8 @@ export default function BookmarkCard(props: Props) {
   const showEditAction = showCopyAction && canEditInCurrentSpace
   const showDeleteAction = showEditAction
   const alwaysShowActions = isMobile || editModalOpen || deleteConfirmOpen
+  const showPublicSwitch =
+    pageUtil.isUserSpace || (pageUtil.isPublicSpace && !!session.data?.user?.isAdmin)
 
   const generateLinkTitle = () => {
     const baseTitle = `${props.name} - ${props.description}`
@@ -78,15 +86,19 @@ export default function BookmarkCard(props: Props) {
 
   async function confirmDeleteBookmark() {
     setDeleting(true)
-    const action = pageUtil.isUserSpace
-      ? actDeleteUserBookmark({ id: props.id })
-      : actDeletePublicBookmark({ id: props.id })
-    const res = await runAction(action, {
-      okMsg: '书签已删除',
-      onOk() {
-        removeBookmark(props.id)
-      },
-    })
+    const res = await (pageUtil.isUserSpace
+      ? runAction(actDeleteUserBookmark({ id: props.id }), {
+          okMsg: '书签已删除',
+          onOk() {
+            removeBookmark(props.id)
+          },
+        })
+      : runAction(actDeletePublicBookmark({ id: props.id }), {
+          okMsg: '书签已删除',
+          onOk() {
+            removeBookmark(props.id)
+          },
+        }))
     if (res.ok) {
       setDeleteConfirmOpen(false)
     }
@@ -98,6 +110,30 @@ export default function BookmarkCard(props: Props) {
     const target = evt.target as Node | null
     if (target && !evt.currentTarget.contains(target)) return
     window.open(props.url, '_blank')
+  }
+
+  async function onChangePublicVisibility(isPublic: boolean) {
+    if (publicSwitchLoading) return
+    setPublicSwitchLoading(true)
+    try {
+      if (pageUtil.isPublicSpace) {
+        await runAction(actUpdatePublicBookmark({ id: props.id, isPublic }), {
+          okMsg: isPublic ? '已恢复公开展示' : '已取消公开展示',
+          onOk() {
+            updateBookmark({ ...props, isPublic })
+          },
+        })
+        return
+      }
+      await runAction(actToggleUserBookmarkPublic({ id: props.id, isPublic }), {
+        errToast: { title: '公开状态更新失败' },
+        onOk(nextBookmark) {
+          updateBookmark(nextBookmark)
+        },
+      })
+    } finally {
+      setPublicSwitchLoading(false)
+    }
   }
 
   return (
@@ -185,34 +221,54 @@ export default function BookmarkCard(props: Props) {
           )
         })}
       </div>
-      {showCopyAction && (
+      {(showPublicSwitch || showCopyAction) && (
         <div
-          className={cn(
-            'max-xs:gap-1 flex justify-end gap-2 transition',
-            alwaysShowActions
-              ? 'opacity-100'
-              : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
-          )}
-          aria-label="站点操作"
+          className="mt-1 flex items-end justify-between gap-2"
+          onClick={(event) => event.stopPropagation()}
         >
-          {showEditAction && (
-            <button
-              type="button"
-              onClick={onClickEdit}
-              className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
-            >
-              <span className="icon-[tabler--edit] text-sm" />
-              <span>编辑</span>
-            </button>
+          {showPublicSwitch ? (
+            <div className="text-foreground-500 flex items-center gap-2 text-xs">
+              <span>公开展示</span>
+              <Switch
+                size="sm"
+                isSelected={!!props.isPublic}
+                isDisabled={publicSwitchLoading}
+                onValueChange={onChangePublicVisibility}
+              />
+            </div>
+          ) : (
+            <div />
           )}
-          <button
-            type="button"
-            onClick={onCopyUrl}
-            className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
-          >
-            <span className="icon-[tabler--copy] text-sm" />
-            <span>复制</span>
-          </button>
+          {showCopyAction && (
+            <div
+              className={cn(
+                'max-xs:gap-1 flex justify-end gap-2 transition',
+                alwaysShowActions
+                  ? 'opacity-100'
+                  : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100'
+              )}
+              aria-label="站点操作"
+            >
+              {showEditAction && (
+                <button
+                  type="button"
+                  onClick={onClickEdit}
+                  className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+                >
+                  <span className="icon-[tabler--edit] text-sm" />
+                  <span>编辑</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onCopyUrl}
+                className="flex-items-center text-foreground-500 border-foreground-200 hover:text-foreground-700 max-xs:px-1.5 max-xs:py-0.5 gap-1 rounded-lg border px-2 py-1 text-xs transition active:opacity-70"
+              >
+                <span className="icon-[tabler--copy] text-sm" />
+                <span>复制</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
       {showEditAction && (

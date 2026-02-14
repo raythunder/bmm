@@ -141,11 +141,15 @@ export default function BookmarkListPage(props: BookmarkListPageProps) {
   )
 
   async function onRemove(item: SelectBookmark) {
-    const action = isUserSpace ? actDeleteUserBookmark : actDeletePublicBookmark
-    await runAction(action({ id: item.id }), {
-      okMsg: '书签已删除',
-      onOk: refresh,
-    })
+    await (isUserSpace
+      ? runAction(actDeleteUserBookmark({ id: item.id }), {
+          okMsg: '书签已删除',
+          onOk: refresh,
+        })
+      : runAction(actDeletePublicBookmark({ id: item.id }), {
+          okMsg: '书签已删除',
+          onOk: refresh,
+        }))
   }
 
   function onPageChange(page: number) {
@@ -156,8 +160,10 @@ export default function BookmarkListPage(props: BookmarkListPageProps) {
     item.isPinned = isPinned
     mutate([...bookmarks])
     dataRef.current.loadingMutable = false
-    const action = isUserSpace ? actUpdateUserBookmark : actUpdatePublicBookmark
-    runAction(action(item)).then(refresh)
+    ;(isUserSpace
+      ? runAction(actUpdateUserBookmark(item))
+      : runAction(actUpdatePublicBookmark(item))
+    ).then(refresh)
   }
 
   function toEditPage(item: SelectBookmark) {

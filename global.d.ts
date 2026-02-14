@@ -52,7 +52,7 @@ declare global {
   /** publicTag / userTag 的公共类型 */
   export type SelectTag = SelectPublicTag
   /** publicBookmark / userBookmark 的公共类型 */
-  export type SelectBookmark = SelectPublicBookmark
+  export type SelectBookmark = SelectPublicBookmark & { isPublic?: boolean }
 }
 
 declare module 'next-auth' {

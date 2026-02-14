@@ -43,6 +43,13 @@
       "when": 1770975223439,
       "tag": "0005_smooth_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1771049400000,
+      "tag": "0006_public_bookmark_visibility",
+      "breakpoints": true
     }
   ]
 }
