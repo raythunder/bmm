@@ -4,12 +4,13 @@ import { ReInput } from '@/components'
 import { usePageUtil } from '@/hooks'
 import { IconNames, PageRoutes } from '@cfg'
 import { cn, Kbd } from '@heroui/react'
-import { useDebounceEffect, useEventListener, useMemoizedFn, useMount, useSetState } from 'ahooks'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useRef } from 'react'
+import { useDebounceEffect, useEventListener, useMemoizedFn, useSetState } from 'ahooks'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useRef } from 'react'
 
 export function SearchInput(props: BaseComponentProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const routes = usePageUtil().isUserSpace ? PageRoutes.User : PageRoutes.Public
   const [state, setState] = useSetState({
@@ -54,11 +55,13 @@ export function SearchInput(props: BaseComponentProps) {
     trailing: true,
   })
 
-  useMount(() => {
-    if (location.pathname === PageRoutes.Public.SEARCH && inputRef.current) {
-      inputRef.current.querySelector('input')?.focus()
-    }
-  })
+  useEffect(() => {
+    if (pathname !== routes.SEARCH) return
+    const timer = globalThis.setTimeout(() => {
+      inputRef.current?.querySelector('input')?.focus()
+    }, 0)
+    return () => globalThis.clearTimeout(timer)
+  }, [pathname, routes.SEARCH])
 
   return (
     <ReInput
